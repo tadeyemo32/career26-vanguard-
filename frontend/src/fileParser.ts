@@ -1,7 +1,6 @@
 // File parser utilities: CSV, XLSX, PDF, TXT → raw text for extraction pipeline
 import * as XLSX from 'xlsx';
-import type { GlobalWorkerOptions } from 'pdfjs-dist';
-// NOTE: pdfjs-dist needs a workerSrc for browser rendering; for text extraction we use the raw API.
+// NOTE: pdfjs-dist worker is configured at runtime via the dynamic import below.
 
 export type ParsedFileResult = {
     text: string;
