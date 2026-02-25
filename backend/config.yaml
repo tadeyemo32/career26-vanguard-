@@ -1,0 +1,111 @@
+# Vanguard pipeline configuration
+
+db:
+  path: "data/vanguard.db"
+
+ingestion:
+  # Use data/sample_companies.csv for quick test (few rows); data/companies.csv for full run
+  companies_house_csv: "data/companies.csv"
+  batch_size: 5000
+  # Only ingest and move forward with active firms (exclude Dissolved, Liquidation, etc.)
+  active_only: true
+  allowed_company_statuses:
+    - "Active"
+  # Column names must match Companies House bulk product CSV header exactly.
+  # Layout: CompanyName, CompanyNumber, SICCode.SicText_1..4 ("CODE - Description" per cell), etc.
+  columns:
+    name: "CompanyName"
+    company_number: "CompanyNumber"
+    company_category: "CompanyCategory"
+    status: "CompanyStatus"
+    incorporation_date: "IncorporationDate"
+    sic_1: "SICCode.SicText_1"
+    sic_2: "SICCode.SicText_2"
+    sic_3: "SICCode.SicText_3"
+    sic_4: "SICCode.SicText_4"
+    address_line1: "RegAddress.AddressLine1"
+    post_town: "RegAddress.PostTown"
+    county: "RegAddress.County"
+    country: "RegAddress.Country"
+    post_code: "RegAddress.PostCode"
+    uri: "URI"
+  previous_name_columns:
+    - "PreviousName_1.CompanyName"
+    - "PreviousName_2.CompanyName"
+    - "PreviousName_3.CompanyName"
+    - "PreviousName_4.CompanyName"
+    - "PreviousName_5.CompanyName"
+    - "PreviousName_6.CompanyName"
+    - "PreviousName_7.CompanyName"
+    - "PreviousName_8.CompanyName"
+    - "PreviousName_9.CompanyName"
+    - "PreviousName_10.CompanyName"
+
+scoring:
+  asset_manager:
+    threshold: 0.6
+    sic_whitelist:
+      "66300": 0.6   # Fund management
+      "64304": 0.7   # Unit trusts
+      "64305": 0.6   # Investment trusts
+      "64306": 0.6   # Other financial intermediation
+    keywords:
+      "asset management": 0.4
+      "investment management": 0.4
+      "hedge fund": 0.5
+      "private equity": 0.5
+      "capital management": 0.3
+      "fund manager": 0.4
+      "portfolio management": 0.3
+  linkedin_match:
+    min_confidence: 0.7
+  person_relevance:
+    min_score: 0.5
+    reject_titles:
+      - "recruiter"
+      - "intern"
+      - "internship"
+      - "graduate analyst"
+    title_weights:
+      "Chief Investment Officer": 1.0
+      "CIO": 1.0
+      "Portfolio Manager": 0.9
+      "Managing Partner": 0.9
+      "Head of Investments": 0.9
+      "Investment Director": 0.8
+      "Partner": 0.85
+      "Director": 0.7
+
+enrichment:
+  serpapi:
+    # Set SERPAPI_KEY in env
+    rate_limit_delay_seconds: 1
+    max_queries_per_company_linkedin: 5
+    max_queries_per_company_website: 2
+  linkedin_people_roles:
+    - "Chief Investment Officer"
+    - "CIO"
+    - "Portfolio Manager"
+    - "Managing Partner"
+    - "Head of Investments"
+    - "Investment Director"
+  email:
+    min_confidence: 0.7
+  website_llm:
+    # Set OPENAI_API_KEY or ANTHROPIC_API_KEY in env
+    model: "gpt-4o-mini"
+    max_content_chars: 50000
+    prompt_hash_in_metadata: true
+
+pipeline:
+  stages:
+    - ingest
+    - score_asset_manager
+    - name_variants
+    - linkedin_company
+    - linkedin_people
+    - company_website
+    - website_llm
+    - email_finder
+  resume: true
+  log_every_n_companies: 100

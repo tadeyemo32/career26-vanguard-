@@ -1,0 +1,147 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+:root {
+  --bg: #0b0c10;
+  --bg-card: #1f2833;
+  --text: #c5c6c7;
+  --text-hl: #66fcf1;
+  --text-muted: #45a29e;
+  --panel: rgba(31, 40, 51, 0.4);
+}
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 900px;
+  padding: 40px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+h1 {
+  color: var(--text-hl);
+  font-weight: 700;
+  font-size: 2rem;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+h2 {
+  color: white;
+  margin-top: 0;
+}
+
+.status {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  background: var(--bg-card);
+}
+
+.status.online {
+  color: #4ade80;
+  border: 1px solid #4ade80;
+}
+
+.status.offline {
+  color: #f87171;
+  border: 1px solid #f87171;
+}
+
+.card {
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(102, 252, 241, 0.2);
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 20px;
+  transition: transform 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(102, 252, 241, 0.5);
+}
+
+button {
+  background: linear-gradient(135deg, var(--text-hl), #00c6ff);
+  color: var(--bg);
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px var(--text-hl);
+}
+
+button:disabled {
+  background: #555;
+  color: #888;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.avatar {
+  background: var(--text-muted);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border-radius: 50%;
+  margin-right: 15px;
+  color: var(--bg);
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+}
+
+.info span {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.info .email {
+  color: var(--text-hl);
+  font-size: 0.85rem;
+}
