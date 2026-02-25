@@ -1,0 +1,5 @@
+data/
+bin/
+*.db
+*.csv
+.env
