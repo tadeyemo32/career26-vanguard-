@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/tadeyemo32/vanguard-backend/api"
-	"github.com/tadeyemo32/vanguard-backend/db"
+	"github.com/tadeyemo32/vanguard-backend/services"
 )
 
 func main() {
@@ -15,8 +15,7 @@ func main() {
 	_ = godotenv.Load("../.env")
 
 	// Initialize database
-	database := db.InitDB("./data/vanguard.db")
-	defer database.Close()
+	services.InitDB()
 
 	r := gin.Default()
 
@@ -34,7 +33,7 @@ func main() {
 		c.Next()
 	})
 
-	api.SetupRoutes(r, database)
+	api.SetupRoutes(r)
 
 	port := os.Getenv("PORT")
 	if port == "" {

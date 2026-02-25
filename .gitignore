@@ -9,3 +9,4 @@ backend/data/logs/*.log
 frontend/node_modules/
 .env
 *.egg-info/
+backend/data/
