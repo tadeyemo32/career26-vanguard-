@@ -34,8 +34,8 @@ func generateVerificationCode() string {
 	if _, err := rand.Read(b); err != nil {
 		return "123456" // fallback
 	}
-	// generate a 6-digit code
-	return fmt.Sprintf("%06d", int(b[0])<<16|int(b[1])<<8|int(b[2]))
+	// generate a 6-digit code (000000-999999)
+	return fmt.Sprintf("%06d", (int(b[0])<<16|int(b[1])<<8|int(b[2]))%1000000)
 }
 
 func signupHandler(c *gin.Context) {
