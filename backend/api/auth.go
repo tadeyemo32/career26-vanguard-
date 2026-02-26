@@ -49,9 +49,14 @@ func signupHandler(c *gin.Context) {
 
 	// Check if user already exists
 	var existingUser models.User
-	if err := services.DB.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
-		return
+	userFound := services.DB.Where("email = ?", req.Email).First(&existingUser).Error == nil
+
+	if userFound {
+		if existingUser.IsVerified {
+			c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
+			return
+		}
+		// If they exist but are NOT verified, we will overwrite their info and resend the code.
 	}
 
 	hashedPassword, err := services.HashPassword(req.Password)
@@ -62,18 +67,34 @@ func signupHandler(c *gin.Context) {
 
 	code := generateVerificationCode()
 
-	user := models.User{
-		FirstName:        strings.TrimSpace(req.FirstName),
-		LastName:         strings.TrimSpace(req.LastName),
-		Email:            req.Email,
-		PasswordHash:     hashedPassword,
-		VerificationCode: code,
-		IsVerified:       false,
-	}
+	var user models.User
+	if userFound {
+		// Update existing unverified user
+		user = existingUser
+		user.FirstName = strings.TrimSpace(req.FirstName)
+		user.LastName = strings.TrimSpace(req.LastName)
+		user.PasswordHash = hashedPassword
+		user.VerificationCode = code
 
-	if err := services.DB.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
-		return
+		if err := services.DB.Save(&user).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+			return
+		}
+	} else {
+		// Create new user
+		user = models.User{
+			FirstName:        strings.TrimSpace(req.FirstName),
+			LastName:         strings.TrimSpace(req.LastName),
+			Email:            req.Email,
+			PasswordHash:     hashedPassword,
+			VerificationCode: code,
+			IsVerified:       false,
+		}
+
+		if err := services.DB.Create(&user).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+			return
+		}
 	}
 
 	// Trigger the verification email asynchronously via a background goroutine queue
