@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
 import { api, getAuthToken, setAuthToken } from './api';
 import type { PersonRow } from './api';
-import { Search, Mail, Building2, Briefcase, ChevronRight, CheckCircle2, AlertCircle, Loader2, LogOut } from 'lucide-react';
+import { Search, Mail, Building2, Briefcase, ChevronRight, CheckCircle2, AlertCircle, Loader2, LogOut, Settings, ShieldCheck, Activity, Users, Trophy } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { AuthScreen } from './Auth';
 
 function App() {
     const [activeTab, setActiveTab] = useState('extract');
     const [isAuthenticated, setIsAuthenticated] = useState(!!getAuthToken());
-    const [user, setUser] = useState<{ email: string, credits: number } | null>(null);
+    const [user, setUser] = useState<{ email: string, credits: number, role: string } | null>(null);
 
     useEffect(() => {
         if (isAuthenticated) {
             api.getUser().then(res => {
-                if (!res.error) setUser({ email: res.email, credits: res.credits });
+                if (!res.error) setUser({ email: res.email, credits: res.credits, role: res.role });
             });
         }
     }, [isAuthenticated]);
@@ -40,19 +40,26 @@ function App() {
                     {activeTab === 'email' && <SimpleEmailFinderTab />}
                     {activeTab === 'search' && <SmartSearchTab />}
                     {activeTab === 'assetmanager' && <AssetManagerTab />}
+                    {activeTab === 'settings' && <SettingsTab userRole={user?.role || 'user'} />}
+                    {activeTab === 'admin' && user?.role === 'admin' && <AdminDashboardTab />}
                 </div>
             </div>
         </div>
     );
 }
 
-function Sidebar({ activeTab, setActiveTab, onLogout, user }: { activeTab: string, setActiveTab: (t: string) => void, onLogout: () => void, user: { email: string, credits: number } | null }) {
+function Sidebar({ activeTab, setActiveTab, onLogout, user }: { activeTab: string, setActiveTab: (t: string) => void, onLogout: () => void, user: { email: string, credits: number, role: string } | null }) {
     const tabs = [
         { id: 'extract', label: 'Company Extraction', icon: Building2 },
         { id: 'email', label: 'Email Finder', icon: Mail },
         { id: 'search', label: 'Smart Search', icon: Search },
         { id: 'assetmanager', label: 'AM Outreach', icon: Briefcase },
     ];
+
+    if (user?.role === 'admin') {
+        tabs.push({ id: 'admin', label: 'Admin Panel', icon: ShieldCheck });
+    }
+    tabs.push({ id: 'settings', label: 'Settings', icon: Settings });
 
     return (
         <div className="w-64 bg-[#13151f] flex flex-col pt-8 px-4 h-full relative border-r border-[#1e2235]">
@@ -419,3 +426,239 @@ function AssetManagerTab() {
 }
 
 export default App;
+
+function SettingsTab({ userRole }: { userRole: string }) {
+    const [provider, setProvider] = useState('openai');
+    const [model, setModel] = useState('gpt-4o-mini');
+    const [keys, setKeys] = useState<Record<string, string>>({});
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState('');
+
+    useEffect(() => {
+        api.getModel().then(res => {
+            if (!res.error) {
+                setProvider(res.provider);
+                setModel(res.model);
+            }
+        });
+        if (userRole === 'admin') {
+            api.getKeys().then(res => {
+                if (!res.error) setKeys(res.keys);
+            });
+        }
+    }, [userRole]);
+
+    const handleSave = async () => {
+        setLoading(true);
+        setMessage('');
+        const mRes = await api.setModel(provider, model);
+        let kRes = { success: true };
+        if (userRole === 'admin') {
+            kRes = await api.saveKeys(keys);
+        }
+
+        if (mRes.success && kRes.success) {
+            setMessage('Settings saved successfully!');
+        } else {
+            setMessage('Failed to save settings.');
+        }
+        setLoading(false);
+    };
+
+    return (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl">
+            <h1 className="text-3xl font-bold mb-2">Settings</h1>
+            <p className="text-[#6b7494] mb-8">Configure your AI preferences and integration keys.</p>
+
+            <div className="space-y-8">
+                {/* AI Model Selection - Visible to Everyone */}
+                <div className="bg-[#13151f] rounded-2xl p-6 border border-[#1e2235] shadow-xl">
+                    <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                        <Activity size={20} className="text-[#3b5cbd]" />
+                        AI Provider & Model
+                    </h2>
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label className="block text-sm font-medium text-[#6b7494] mb-2">Provider</label>
+                            <select
+                                value={provider} onChange={e => setProvider(e.target.value)}
+                                className="w-full bg-[#0f1018] border border-[#262d42] rounded-xl px-4 py-3 text-[#d8dce8]"
+                            >
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="gemini">Gemini</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-[#6b7494] mb-2">Model</label>
+                            <input
+                                type="text" value={model} onChange={e => setModel(e.target.value)}
+                                className="w-full bg-[#0f1018] border border-[#262d42] rounded-xl px-4 py-3 text-[#d8dce8]"
+                                placeholder="e.g. gpt-4o-mini"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* API Keys - Admin Only */}
+                {userRole === 'admin' ? (
+                    <div className="bg-[#13151f] rounded-2xl p-6 border border-[#1e2235] shadow-xl">
+                        <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                            <ShieldCheck size={20} className="text-[#3b5cbd]" />
+                            Integration Keys (Admin)
+                        </h2>
+                        <div className="space-y-4">
+                            {['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'HUNTER_API_KEY', 'ANYMAIL_FINDER_API_KEY', 'RESEND_API_KEY'].map(key => (
+                                <div key={key}>
+                                    <label className="block text-xs font-mono text-[#6b7494] mb-1">{key}</label>
+                                    <input
+                                        type="password"
+                                        value={keys[key] || ''}
+                                        onChange={e => setKeys({ ...keys, [key]: e.target.value })}
+                                        className="w-full bg-[#0f1018] border border-[#262d42] rounded-xl px-4 py-2 text-sm text-[#d8dce8] focus:border-[#3b5cbd] transition-colors"
+                                        placeholder="••••••••••••••••"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-6 border border-[#1e2235] bg-[#0f1018] rounded-2xl text-center">
+                        <p className="text-sm text-[#6b7494]">API Key management is restricted to Administrators.</p>
+                    </div>
+                )}
+
+                <button
+                    onClick={handleSave} disabled={loading}
+                    className="w-full bg-[#3b5cbd] hover:bg-[#4d70d9] text-white px-6 py-4 rounded-xl font-semibold transition-all flex justify-center items-center shadow-lg"
+                >
+                    {loading ? <Loader2 className="animate-spin" /> : 'Apply Configuration'}
+                </button>
+
+                {message && (
+                    <div className={`p-4 rounded-xl border text-sm text-center ${message.includes('success') ? 'bg-[#34d39910] border-[#34d399] text-[#34d399]' : 'bg-[#f8717110] border-[#f87171] text-[#f87171]'}`}>
+                        {message}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function AdminDashboardTab() {
+    const [stats, setStats] = useState<any>(null);
+    const [users, setUsers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const loadData = async () => {
+        setLoading(true);
+        const [sRes, uRes] = await Promise.all([api.adminGetStats(), api.adminListUsers()]);
+        if (!sRes.error) setStats(sRes.stats);
+        if (!uRes.error) setUsers(uRes.users);
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const handleAddCredits = async (userId: number, current: number) => {
+        const amt = prompt("Enter new credit balance:", (current + 50000).toString());
+        if (amt) {
+            const res = await api.adminUpdateCredits(userId, parseInt(amt));
+            if (res.success) loadData();
+        }
+    };
+
+    const toggleRole = async (userId: number, currentRole: string) => {
+        const newRole = currentRole === 'admin' ? 'user' : 'admin';
+        if (confirm(`Change user to ${newRole}?`)) {
+            const res = await api.adminUpdateRole(userId, newRole);
+            if (res.success) loadData();
+        }
+    };
+
+    if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-[#3b5cbd]" size={40} /></div>;
+
+    return (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h1 className="text-3xl font-bold mb-2">Admin Control Center</h1>
+            <p className="text-[#6b7494] mb-8">Monitor system health and manage user accessibility.</p>
+
+            {/* Stats Overview */}
+            <div className="grid grid-cols-3 gap-6 mb-12">
+                <div className="bg-[#13151f] p-6 rounded-2xl border border-[#1e2235]">
+                    <div className="flex items-center gap-3 text-[#a1a7c0] mb-2">
+                        <Users size={18} />
+                        <span className="text-sm font-medium">Total Accounts</span>
+                    </div>
+                    <div className="text-3xl font-bold text-white">{stats?.total_users || 0}</div>
+                </div>
+                <div className="bg-[#13151f] p-6 rounded-2xl border border-[#1e2235]">
+                    <div className="flex items-center gap-3 text-[#a1a7c0] mb-2">
+                        <Activity size={18} />
+                        <span className="text-sm font-medium">Verified Ratio</span>
+                    </div>
+                    <div className="text-3xl font-bold text-[#34d399]">{Math.round((stats?.verified_users / stats?.total_users) * 100) || 0}%</div>
+                </div>
+                <div className="bg-[#13151f] p-6 rounded-2xl border border-[#1e2235]">
+                    <div className="flex items-center gap-3 text-[#a1a7c0] mb-2">
+                        <Trophy size={18} />
+                        <span className="text-sm font-medium">Total Tokens Burned</span>
+                    </div>
+                    <div className="text-3xl font-bold text-white">{stats?.total_tokens?.toLocaleString() || 0}</div>
+                </div>
+            </div>
+
+            {/* User Management Table */}
+            <div className="bg-[#13151f] rounded-2xl border border-[#1e2235] overflow-hidden">
+                <div className="p-6 border-b border-[#1e2235] flex justify-between items-center">
+                    <h2 className="text-xl font-semibold">User Directory</h2>
+                    <button onClick={loadData} className="text-xs text-[#3b5cbd] hover:underline">Refresh Data</button>
+                </div>
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-[#0f1018]">
+                        <tr>
+                            <th className="px-6 py-4 font-semibold text-[#6b7494]">User</th>
+                            <th className="px-6 py-4 font-semibold text-[#6b7494]">Role</th>
+                            <th className="px-6 py-4 font-semibold text-[#6b7494]">Credits</th>
+                            <th className="px-6 py-4 font-semibold text-[#6b7494]">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1e2235]">
+                        {users.map(u => (
+                            <tr key={u.ID} className="hover:bg-[#1e2330] transition-colors">
+                                <td className="px-6 py-4">
+                                    <div className="font-medium text-white">{u.first_name} {u.last_name}</div>
+                                    <div className="text-xs text-[#6b7494]">{u.Email}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold ${u.role === 'admin' ? 'bg-[#3b5cbd10] text-[#3b5cbd] border border-[#3b5cbd20]' : 'bg-[#6b749410] text-[#6b7494]'}`}>
+                                        {u.role}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 font-mono text-[#34d399]">{u.Credits.toLocaleString()}</td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => handleAddCredits(u.ID, u.Credits)}
+                                            className="text-xs bg-[#1e2330] hover:bg-[#262d42] px-3 py-1.5 rounded text-[#d8dce8] border border-[#262d42]"
+                                        >
+                                            Modify Credits
+                                        </button>
+                                        <button
+                                            onClick={() => toggleRole(u.ID, u.role)}
+                                            className="text-xs text-[#6b7494] hover:text-white"
+                                        >
+                                            {u.role === 'admin' ? 'Demote' : 'Make Admin'}
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}

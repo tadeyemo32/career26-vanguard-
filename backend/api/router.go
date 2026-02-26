@@ -27,8 +27,11 @@ func SetupRoutes(r *gin.Engine) {
 	apiGroup.Use(AuthMiddleware())
 	{
 		apiGroup.GET("/auth/me", getUserMeHandler)
-		apiGroup.GET("/keys", getKeys)
-		apiGroup.POST("/keys", saveKeys)
+
+		// Proctect API keys - Admin Only
+		apiGroup.GET("/keys", AdminMiddleware(), getKeys)
+		apiGroup.POST("/keys", AdminMiddleware(), saveKeys)
+
 		apiGroup.POST("/extract", extractDataHandler)
 		apiGroup.POST("/ai-search", aiSearchHandler)
 		apiGroup.POST("/company-intel", companyIntelHandler)
@@ -39,6 +42,16 @@ func SetupRoutes(r *gin.Engine) {
 		apiGroup.POST("/pipeline/run", pipelineRunHandler)
 		apiGroup.GET("/model", getModelHandler)
 		apiGroup.POST("/model", setModelHandler)
+
+		// Admin management dashboard routes
+		adminGroup := apiGroup.Group("/admin")
+		adminGroup.Use(AdminMiddleware())
+		{
+			adminGroup.GET("/users", listUsersHandler)
+			adminGroup.PATCH("/users/:id/credits", updateUserCreditsHandler)
+			adminGroup.PATCH("/users/:id/role", updateUserRoleHandler)
+			adminGroup.GET("/stats", getSystemStatsHandler)
+		}
 	}
 }
 

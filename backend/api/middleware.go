@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tadeyemo32/vanguard-backend/models"
 	"github.com/tadeyemo32/vanguard-backend/services"
 )
 
@@ -53,6 +54,31 @@ func BackendKeyMiddleware() gin.HandlerFunc {
 				return
 			}
 		}
+		c.Next()
+	}
+}
+
+// AdminMiddleware ensures the authenticated user has the "admin" role.
+// Must be used after AuthMiddleware.
+func AdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("userID")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			return
+		}
+
+		var user models.User
+		if err := services.DB.First(&user, userID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify user role"})
+			return
+		}
+
+		if user.Role != "admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+			return
+		}
+
 		c.Next()
 	}
 }

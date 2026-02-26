@@ -81,6 +81,14 @@ func signupHandler(c *gin.Context) {
 			return
 		}
 	} else {
+		// Bootstrap: First user becomes admin
+		var count int64
+		services.DB.Model(&models.User{}).Count(&count)
+		role := "user"
+		if count == 0 {
+			role = "admin"
+		}
+
 		// Create new user
 		user = models.User{
 			FirstName:        strings.TrimSpace(req.FirstName),
@@ -89,6 +97,7 @@ func signupHandler(c *gin.Context) {
 			PasswordHash:     hashedPassword,
 			VerificationCode: code,
 			IsVerified:       false,
+			Role:             role,
 		}
 
 		if err := services.DB.Create(&user).Error; err != nil {

@@ -20,6 +20,7 @@ type User struct {
 	VerificationCode string
 	IsVerified       bool      `gorm:"default:false"`
 	Credits          int       `gorm:"default:100000"`
+	Role             string    `gorm:"default:user" json:"role"`
 	CreatedAt        time.Time `json:"created_at"`
 }
 

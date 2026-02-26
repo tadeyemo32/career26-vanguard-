@@ -93,18 +93,72 @@ export const api = {
             return { success: false, error: e.message };
         }
     },
-    async getUser(): Promise<{ email: string, credits: number, error?: string }> {
+    async getUser(): Promise<{ email: string, credits: number, role: string, error?: string }> {
         try {
             const res = await fetch(`${API_BASE}/auth/me`, {
                 headers: getDefaultHeaders(),
             });
             const data = await safeJson(res);
-            if (!res.ok) return { email: "", credits: 0, error: data.error };
-            return { email: data.email || "", credits: data.credits || 0 };
+            if (!res.ok) return { email: "", credits: 0, role: "user", error: data.error };
+            return { email: data.email || "", credits: data.credits || 0, role: data.role || "user" };
         } catch (e: any) {
-            return { email: "", credits: 0, error: e.message };
+            return { email: "", credits: 0, role: "user", error: e.message };
         }
     },
+    // ---- ADMIN MANAGEMENT ---- //
+    async adminListUsers(): Promise<{ users: any[], error?: string }> {
+        try {
+            const res = await fetch(`${API_BASE}/admin/users`, {
+                headers: getDefaultHeaders(),
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return { users: [], error: data.error };
+            return { users: data || [] };
+        } catch (e: any) {
+            return { users: [], error: e.message };
+        }
+    },
+    async adminUpdateCredits(userId: number, credits: number): Promise<{ success: boolean, error?: string }> {
+        try {
+            const res = await fetch(`${API_BASE}/admin/users/${userId}/credits`, {
+                method: "PATCH",
+                headers: getDefaultHeaders(),
+                body: JSON.stringify({ credits }),
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return { success: false, error: data.error };
+            return { success: true };
+        } catch (e: any) {
+            return { success: false, error: e.message };
+        }
+    },
+    async adminUpdateRole(userId: number, role: string): Promise<{ success: boolean, error?: string }> {
+        try {
+            const res = await fetch(`${API_BASE}/admin/users/${userId}/role`, {
+                method: "PATCH",
+                headers: getDefaultHeaders(),
+                body: JSON.stringify({ role }),
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return { success: false, error: data.error };
+            return { success: true };
+        } catch (e: any) {
+            return { success: false, error: e.message };
+        }
+    },
+    async adminGetStats(): Promise<{ stats: any, error?: string }> {
+        try {
+            const res = await fetch(`${API_BASE}/admin/stats`, {
+                headers: getDefaultHeaders(),
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return { stats: null, error: data.error };
+            return { stats: data };
+        } catch (e: any) {
+            return { stats: null, error: e.message };
+        }
+    },
+    // ------------------------- //
     // ------------------------- //
 
     async checkHealth(): Promise<boolean> {
