@@ -36,7 +36,7 @@ func SendVerificationEmail(toEmail, code string) error {
 	`, code)
 
 	payload := ResendPayload{
-		From:    "Vanguard <onboarding@resend.dev>",
+		From:    "Vanguard <onboarding@theturingproject.com>",
 		To:      []string{toEmail},
 		Subject: "Your Vanguard Verification Code",
 		HTML:    htmlContent,
