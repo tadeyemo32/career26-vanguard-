@@ -120,6 +120,17 @@ func setModelHandler(c *gin.Context) {
 }
 
 func getUserMeHandler(c *gin.Context) {
+	// DEV BYPASS: return a synthetic admin user without hitting the DB
+	if _, isBypass := c.Get("devBypass"); isBypass {
+		c.JSON(http.StatusOK, gin.H{
+			"email":       "dev@local.dev",
+			"credits":     9999999,
+			"role":        "admin",
+			"is_verified": true,
+		})
+		return
+	}
+
 	userIDVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -140,6 +151,7 @@ func getUserMeHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"email":       user.Email,
 		"credits":     user.Credits,
+		"role":        user.Role,
 		"is_verified": user.IsVerified,
 	})
 }
