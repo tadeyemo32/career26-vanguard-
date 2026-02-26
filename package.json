@@ -2,7 +2,6 @@
     "name": "vanguard-monorepo",
     "private": true,
     "scripts": {
-        "build": "npm run build --prefix frontend",
-        "install": "npm install --prefix frontend"
+        "build": "npm install --prefix frontend && npm run build --prefix frontend && mkdir -p ./dist && cp -r frontend/dist/* ./dist/"
     }
 }
