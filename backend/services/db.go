@@ -21,11 +21,19 @@ func InitDB() {
 	}
 
 	var err error
-	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	DB, err = gorm.Open(sqlite.Open(dbPath+"?_busy_timeout=5000&_journal_mode=WAL"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
+	}
+
+	// Configure SQLite connection pooling for heavy loads
+	sqlDB, err := DB.DB()
+	if err == nil {
+		sqlDB.SetMaxIdleConns(1)
+		sqlDB.SetMaxOpenConns(1)    // Force a single connection so concurrent writes queue naturally instead of locking
+		sqlDB.SetConnMaxLifetime(0) // connections are reused indefinitely
 	}
 
 	err = DB.AutoMigrate(

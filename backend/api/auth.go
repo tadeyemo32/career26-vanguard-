@@ -76,12 +76,13 @@ func signupHandler(c *gin.Context) {
 		return
 	}
 
-	// Trigger the verification email via Resend
-	err = services.SendVerificationEmail(user.Email, code)
-	if err != nil {
-		log.Printf("ERROR sending verification email to %s: %v", user.Email, err)
-		// We still return 201 Created because the user account is safely registered in the DB
-	}
+	// Trigger the verification email asynchronously via a background goroutine queue
+	go func(email, vCode string) {
+		err := services.SendVerificationEmail(email, vCode)
+		if err != nil {
+			log.Printf("ERROR sending background verification email to %s: %v", email, err)
+		}
+	}(user.Email, code)
 
 	c.JSON(http.StatusCreated, gin.H{"message": "User created. Please verify your email.", "code_in_logs": true})
 }
