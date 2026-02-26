@@ -13,6 +13,8 @@ import (
 // User represents a registered user in the system
 type User struct {
 	gorm.Model
+	FirstName        string `json:"first_name"`
+	LastName         string `json:"last_name"`
 	Email            string `gorm:"uniqueIndex;not null"`
 	PasswordHash     string `gorm:"not null"`
 	VerificationCode string

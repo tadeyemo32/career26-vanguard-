@@ -41,12 +41,12 @@ function getDefaultHeaders() {
 
 export const api = {
     // ---- AUTHENTICATION ---- //
-    async signup(email: string, password: string): Promise<{ success: boolean, message?: string, error?: string }> {
+    async signup(firstName: string, lastName: string, email: string, password: string): Promise<{ success: boolean, message?: string, error?: string }> {
         try {
             const res = await fetch(`${API_BASE}/auth/signup`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ first_name: firstName, last_name: lastName, email, password }),
             });
             const data = await safeJson(res);
             if (!res.ok) return { success: false, error: data.error };

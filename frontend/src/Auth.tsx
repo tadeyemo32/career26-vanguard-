@@ -5,6 +5,8 @@ import { api, setAuthToken } from './api';
 export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
     const [mode, setMode] = useState<'login' | 'signup' | 'verify'>('login');
 
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [code, setCode] = useState('');
@@ -21,7 +23,7 @@ export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
 
         try {
             if (mode === 'signup') {
-                const res = await api.signup(email, password);
+                const res = await api.signup(firstName, lastName, email, password);
                 if (res.success) {
                     setMessage(res.message || 'Account created! Please check your email for the verification code.');
                     setMode('verify');
@@ -84,6 +86,36 @@ export function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
                 )}
 
                 <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
+
+                    {mode === 'signup' && (
+                        <div className="flex gap-4">
+                            <div className="flex flex-col gap-1 w-1/2">
+                                <label className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>First Name</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={firstName}
+                                    onChange={e => setFirstName(e.target.value)}
+                                    className="w-full h-11 px-4 rounded-lg bg-transparent border focus:outline-none transition-colors"
+                                    style={{ borderColor: 'var(--color-border)', color: 'white' }}
+                                    placeholder="Jane"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1 w-1/2">
+                                <label className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>Last Name</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={lastName}
+                                    onChange={e => setLastName(e.target.value)}
+                                    className="w-full h-11 px-4 rounded-lg bg-transparent border focus:outline-none transition-colors"
+                                    style={{ borderColor: 'var(--color-border)', color: 'white' }}
+                                    placeholder="Doe"
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex flex-col gap-1">
                         <label className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>Email Address</label>
                         <div className="relative flex items-center">

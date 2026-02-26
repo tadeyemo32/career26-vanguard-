@@ -12,6 +12,13 @@ import (
 	"github.com/tadeyemo32/vanguard-backend/services"
 )
 
+type SignupRequest struct {
+	FirstName string `json:"first_name" binding:"required"`
+	LastName  string `json:"last_name" binding:"required"`
+	Email     string `json:"email" binding:"required,email"`
+	Password  string `json:"password" binding:"required"`
+}
+
 type AuthRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
@@ -32,9 +39,9 @@ func generateVerificationCode() string {
 }
 
 func signupHandler(c *gin.Context) {
-	var req AuthRequest
+	var req SignupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: Please provide all required fields."})
 		return
 	}
 
@@ -56,6 +63,8 @@ func signupHandler(c *gin.Context) {
 	code := generateVerificationCode()
 
 	user := models.User{
+		FirstName:        strings.TrimSpace(req.FirstName),
+		LastName:         strings.TrimSpace(req.LastName),
 		Email:            req.Email,
 		PasswordHash:     hashedPassword,
 		VerificationCode: code,
