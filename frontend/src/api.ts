@@ -1,4 +1,4 @@
-export const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8765/api";
+export const API_BASE = import.meta.env.VITE_API_URL || "https://vanguard26-sac4otr44q-ew.a.run.app/api";
 export function getAuthToken() {
     return localStorage.getItem("vanguard_token") || "";
 }
