@@ -794,32 +794,37 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
 
 
 // ── Main App ──────────────────────────────────────────────────────────────────
+const DEV_BYPASS_TOKEN = import.meta.env.VITE_DEV_TOKEN as string | undefined;
+const DEV_USER: User = { email: 'dev@local', credits: 9999999, role: 'admin' };
+
 export default function App() {
-  // DEV BYPASS: if VITE_DEV_TOKEN is set (local run.sh), auto-authenticate
-  const devToken = import.meta.env.VITE_DEV_TOKEN as string | undefined;
-  if (devToken) {
-    setAuthToken(devToken);
+  // DEV BYPASS: completely skip auth — no login screen, no API call needed
+  if (DEV_BYPASS_TOKEN) {
+    setAuthToken(DEV_BYPASS_TOKEN);
+    return <AppShell user={DEV_USER} onLogout={() => { }} />;
   }
 
+  return <AuthApp />;
+}
+
+function AuthApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!getAuthToken());
   const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(isAuthenticated);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      api.getUser().then(res => {
-        if (!res.error) setUser({ email: res.email, credits: res.credits, role: res.role });
-        else { setAuthToken(''); setIsAuthenticated(false); }
-        setAuthLoading(false);
-      });
-    } else { setAuthLoading(false); }
+    if (!isAuthenticated) { setAuthLoading(false); return; }
+    api.getUser().then(res => {
+      if (!res.error) setUser({ email: res.email, credits: res.credits, role: res.role });
+      else { setAuthToken(''); setIsAuthenticated(false); }
+      setAuthLoading(false);
+    });
   }, [isAuthenticated]);
 
   if (authLoading) return <div className="h-screen bg-[#09090f] flex items-center justify-center"><Loader2 className="animate-spin text-[#3b5cbd]" size={36} /></div>;
   if (!isAuthenticated) return <AuthScreen onAuthSuccess={() => setIsAuthenticated(true)} />;
 
   const handleLogout = () => { setAuthToken(''); setIsAuthenticated(false); setUser(null); };
-
   return <AppShell user={user} onLogout={handleLogout} />;
 }
 
