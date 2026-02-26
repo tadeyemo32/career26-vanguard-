@@ -3,6 +3,7 @@ package api
 import (
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -35,6 +36,23 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// Store user ID in context for downstream handlers
 		c.Set("userID", userID)
+		c.Next()
+	}
+}
+
+// BackendKeyMiddleware strictly ensures external traffic has the master key.
+// This prevents anyone from hitting the deployed Render backend directly
+// without routing through the Vercel frontend.
+func BackendKeyMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		expected := os.Getenv("VANGUARD_API_KEY")
+		if expected != "" {
+			actual := c.GetHeader("X-Vanguard-Key")
+			if actual != expected {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid backend access key"})
+				return
+			}
+		}
 		c.Next()
 	}
 }

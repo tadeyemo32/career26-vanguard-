@@ -35,7 +35,8 @@ async function safeJson(res: Response) {
 function getDefaultHeaders() {
     return {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${getAuthToken()}`
+        "Authorization": `Bearer ${getAuthToken()}`,
+        "X-Vanguard-Key": import.meta.env.VITE_VANGUARD_API_KEY || ""
     };
 }
 
@@ -45,7 +46,10 @@ export const api = {
         try {
             const res = await fetch(`${API_BASE}/auth/signup`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Vanguard-Key": import.meta.env.VITE_VANGUARD_API_KEY || ""
+                },
                 body: JSON.stringify({ first_name: firstName, last_name: lastName, email, password }),
             });
             const data = await safeJson(res);
@@ -59,7 +63,10 @@ export const api = {
         try {
             const res = await fetch(`${API_BASE}/auth/verify`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Vanguard-Key": import.meta.env.VITE_VANGUARD_API_KEY || ""
+                },
                 body: JSON.stringify({ email, code }),
             });
             const data = await safeJson(res);
@@ -73,7 +80,10 @@ export const api = {
         try {
             const res = await fetch(`${API_BASE}/auth/login`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Vanguard-Key": import.meta.env.VITE_VANGUARD_API_KEY || ""
+                },
                 body: JSON.stringify({ email, password }),
             });
             const data = await safeJson(res);

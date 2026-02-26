@@ -10,16 +10,20 @@ func SetupRoutes(r *gin.Engine) {
 	// Health check stays completely public
 	r.GET("/api/health", healthCheck)
 
-	// Auth routes (unauthenticated)
-	authGroup := r.Group("/api/auth")
+	// Create base /api group that requires the server-to-server VANGUARD_API_KEY
+	apiBase := r.Group("/api")
+	apiBase.Use(BackendKeyMiddleware())
+
+	// Auth routes (unauthenticated user, but protected by server key)
+	authGroup := apiBase.Group("/auth")
 	{
 		authGroup.POST("/signup", signupHandler)
 		authGroup.POST("/login", loginHandler)
 		authGroup.POST("/verify", verifyHandler)
 	}
 
-	// Group the rest with authentication
-	apiGroup := r.Group("/api")
+	// Group the rest with user authentication
+	apiGroup := apiBase.Group("")
 	apiGroup.Use(AuthMiddleware())
 	{
 		apiGroup.GET("/auth/me", getUserMeHandler)
