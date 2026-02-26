@@ -1,0 +1,9 @@
+.gcloudignore
+.git
+.gitignore
+data/
+bin/
+*.db
+*.csv
+node_modules/
+dist/

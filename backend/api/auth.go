@@ -106,6 +106,7 @@ func signupHandler(c *gin.Context) {
 		}
 	}
 
+	log.Printf("Triggering verification email for %s", user.Email)
 	// Trigger the verification email asynchronously via a background goroutine queue
 	go func(email, vCode string) {
 		err := services.SendVerificationEmail(email, vCode)
@@ -143,7 +144,7 @@ func verifyHandler(c *gin.Context) {
 	}
 
 	// Code matches, verify user
-	services.DB.Model(&user).Updates(models.User{IsVerified: true, VerificationCode: ""})
+	services.DB.Model(&user).Select("IsVerified", "VerificationCode").Updates(models.User{IsVerified: true, VerificationCode: ""})
 
 	// Issue JWT
 	token, err := services.GenerateJWT(user.ID)

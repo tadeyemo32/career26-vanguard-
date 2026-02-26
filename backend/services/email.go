@@ -15,10 +15,12 @@ type ResendPayload struct {
 	To      []string `json:"to"`
 	Subject string   `json:"subject"`
 	HTML    string   `json:"html"`
+	Text    string   `json:"text"`
 }
 
 // SendVerificationEmail triggers the Resend API to deliver a 6-digit verification code.
 func SendVerificationEmail(toEmail, code string) error {
+	log.Printf("[RESEND] Preparing to send verification code [%s] to [%s]", code, toEmail)
 	apiKey := os.Getenv("RESEND_API_KEY")
 	if apiKey == "" {
 		log.Println("WARNING: RESEND_API_KEY is not set. Verification email will not be sent.")
@@ -38,8 +40,9 @@ func SendVerificationEmail(toEmail, code string) error {
 	payload := ResendPayload{
 		From:    "Vanguard <onboarding@theturingproject.com>",
 		To:      []string{toEmail},
-		Subject: "Your Vanguard Verification Code",
+		Subject: fmt.Sprintf("%s is your Vanguard verification code", code),
 		HTML:    htmlContent,
+		Text:    fmt.Sprintf("Your Vanguard verification code is: %s", code),
 	}
 
 	jsonData, err := json.Marshal(payload)

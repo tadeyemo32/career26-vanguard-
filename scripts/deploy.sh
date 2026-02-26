@@ -17,7 +17,8 @@ cd backend
 go test ./...
 
 echo -e "${BLUE}>>> [2/4] Deploying Backend to Google Cloud Run...${NC}"
-gcloud run deploy vanguard26 --source . --region europe-west1 --quiet
+gcloud run deploy vanguard26 --source . --region europe-west1 --quiet \
+  --set-env-vars "VANGUARD_API_KEY=dev_secret_key,RESEND_API_KEY=re_jM1Tphc9_EjyALFswGLuw26EDEp21tUsW,JWT_SECRET=super-secret-vanguard-key"
 
 # Extract service URL
 SERVICE_URL=$(gcloud run services describe vanguard26 --region europe-west1 --format 'value(status.url)')
@@ -33,16 +34,19 @@ else
     exit 1
 fi
 
-# 2. Frontend Automation (Optional - Requires Vercel CLI)
-echo -e "${BLUE}>>> [4/4] Deploying Frontend...${NC}"
-cd ../frontend
+# 2. Frontend Automation (via GitHub Integration)
+echo -e "${BLUE}>>> [4/4] Syncing Changes to main for Vercel Deployment...${NC}"
+cd ..
 
-if command -v vercel &> /dev/null; then
-    echo -e "${BLUE}Deploying to Vercel...${NC}"
-    vercel --prod --yes
-    echo -e "${GREEN}>>> Frontend deployed successfully.${NC}"
-else
-    echo -e "${RED}Vercel CLI not found. Please deploy manually or install via 'npm i -g vercel'.${NC}"
+# Check for uncommitted changes
+if [[ -n $(git status -s) ]]; then
+    echo -e "${BLUE}Committing local changes...${NC}"
+    git add .
+    git commit -m "chore: automated deployment sync [$(date +'%Y-%m-%d %H:%M:%S')]" || true
 fi
+
+echo -e "${BLUE}Pushing to GitHub (triggers Vercel deploy)...${NC}"
+git push origin main
+echo -e "${GREEN}>>> Changes pushed. Vercel will build automatically.${NC}"
 
 echo -e "${GREEN}>>> Deployment Complete!${NC}"
