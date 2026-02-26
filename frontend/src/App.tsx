@@ -549,16 +549,20 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
   const [err, setErr] = useState('');
 
   const refreshStatus = async () => {
-    try {
-      // Admin users get full key details; others get boolean status only
-      const { keys, error } = await api.getKeys();
-      if (!error) {
-        setServerKeys(keys as any);
-        const bools: KeyStatus = {};
-        Object.entries(keys).forEach(([k, v]: any) => { bools[k] = typeof v === 'object' ? v.connected : !!v; });
-        onKeysChange(bools);
-      }
-    } catch { /* ignore */ }
+    // Always load boolean connection status (works for all authed users including dev bypass)
+    const bools = await api.getKeyStatus();
+    if (Object.keys(bools).length) {
+      onKeysChange(bools);
+      // Build serverKeys from boolean status (will be augmented by masked values if admin)
+      const synth: Record<string, { connected: boolean; masked: string }> = {};
+      Object.entries(bools).forEach(([k, v]) => { synth[k] = { connected: v, masked: '' }; });
+      setServerKeys(synth);
+    }
+    // Also try to load masked key values (admin only — silently skip if not admin)
+    const { keys, error } = await api.getKeys();
+    if (!error && Object.keys(keys).length) {
+      setServerKeys(keys as any);
+    }
   };
 
   useEffect(() => {

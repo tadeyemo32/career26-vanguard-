@@ -3,9 +3,7 @@ set -e
 
 # Vanguard Local Dev Runner
 # ─────────────────────────────────────────────────────────────────────
-# Starts the backend (Go) and frontend (Vite) locally.
-# AUTH IS BYPASSED — any request with Bearer token "devtoken123" is
-# treated as an admin user. This only works when APP_ENV=dev.
+# Starts backend + frontend locally with auth bypass active.
 # ─────────────────────────────────────────────────────────────────────
 
 GREEN='\033[0;32m'
@@ -17,47 +15,47 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo -e "${YELLOW}>>> VANGUARD LOCAL DEV (auth bypass active)${NC}"
-echo ""
 
-# ── 1. Load .env ─────────────────────────────────────────────────────
+# ── 1. Source .env (exports ALL vars including API keys) ──────────────
 if [ -f "$ROOT/.env" ]; then
-  export $(grep -v '^#' "$ROOT/.env" | grep -v '^$' | xargs)
+  set -a
+  source "$ROOT/.env"
+  set +a
+  echo -e "${GREEN}>>> Loaded .env (API keys active)${NC}"
 fi
 
-# ── 2. Force dev bypass settings ─────────────────────────────────────
+# ── 2. Force dev bypass ───────────────────────────────────────────────
 export APP_ENV=dev
 export DEV_BYPASS_TOKEN=devtoken123
 
-# ── 3. Set VITE_DEV_TOKEN so frontend auto-logs in ───────────────────
-export VITE_DEV_TOKEN=devtoken123
-export VITE_API_URL=http://localhost:8765/api
-export VITE_VANGUARD_API_KEY=${VANGUARD_API_KEY:-dev_secret_key}
-
-# ── 4. Start backend ──────────────────────────────────────────────────
+# ── 3. Start backend ──────────────────────────────────────────────────
 echo -e "${BLUE}>>> Starting backend on :8765${NC}"
-cd "$ROOT/backend"
-go run ./main.go &
+cd "$ROOT/backend/cmd/server"
+go run . &>/tmp/vanguard_backend.log &
 BACKEND_PID=$!
-echo -e "${GREEN}>>> Backend PID: $BACKEND_PID${NC}"
 
-# Wait for backend to be ready
-sleep 2
+# Wait for backend to be ready (up to 15s)
+echo -n "Waiting for backend"
+for i in $(seq 1 15); do
+  sleep 1
+  if curl -sf http://localhost:8765/api/health >/dev/null 2>&1; then
+    echo -e " ${GREEN}ready!${NC}"
+    break
+  fi
+  echo -n "."
+done
 
-# ── 5. Start frontend ─────────────────────────────────────────────────
+# ── 4. Start frontend ─────────────────────────────────────────────────
 echo -e "${BLUE}>>> Starting frontend (Vite)${NC}"
 cd "$ROOT/frontend"
-VITE_DEV_TOKEN=devtoken123 \
-VITE_API_URL=http://localhost:8765/api \
-VITE_VANGUARD_API_KEY=${VANGUARD_API_KEY:-dev_secret_key} \
 npm run dev &
 FRONTEND_PID=$!
 
 echo ""
-echo -e "${GREEN}>>> App running at http://localhost:5173${NC}"
-echo -e "${YELLOW}>>> Auth bypass: login screen is skipped automatically${NC}"
+echo -e "${GREEN}>>> App at http://localhost:5173${NC}"
+echo -e "${YELLOW}>>> Auth bypass ON — login screen skipped (admin as dev@local)${NC}"
 echo ""
-echo "Press Ctrl+C to stop both servers."
+echo "Press Ctrl+C to stop."
 
-# ── 6. Clean shutdown ─────────────────────────────────────────────────
-trap "echo -e '\n${YELLOW}Stopping servers...${NC}'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0" INT TERM
+trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0" INT TERM
 wait
