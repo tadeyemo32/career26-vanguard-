@@ -9,17 +9,17 @@ import (
 )
 
 // AISearch query LinkedIn natively, e.g. "IB bankers in Aberdeen"
-func AISearch(query string, maxResults int) []models.PersonRow {
+func AISearch(query string, maxResults int) ([]models.PersonRow, int) {
 	var out []models.PersonRow
 
-	enhanced := LLMEnhanceSearchQuery(query)
+	enhanced, tokens := LLMEnhanceSearchQuery(query)
 	log.Printf("AISearch original: '%s', enhanced: '%s'", query, enhanced)
 
 	q := enhanced + " site:linkedin.com/in"
 	results, err := SerpGoogle(q, maxResults)
 	if err != nil {
 		log.Printf("AISearch SerpAPI error: %v", err)
-		return out
+		return out, tokens
 	}
 
 	for _, r := range results {
@@ -58,6 +58,13 @@ func AISearch(query string, maxResults int) []models.PersonRow {
 			company = strings.TrimSpace(strings.Split(cParts[len(cParts)-1], ".")[0])
 		}
 
+		// Clean up the company name to improve Anymail lookup success rates
+		company = strings.ReplaceAll(company, " - LinkedIn", "")
+		company = strings.ReplaceAll(company, " | LinkedIn", "")
+		company = strings.ReplaceAll(company, "| LinkedIn", "")
+		company = strings.ReplaceAll(company, "...", "")
+		company = strings.TrimSpace(company)
+
 		row := models.PersonRow{
 			Name:       name,
 			Title:      "LinkedIn Result", // snippet parsing might improve this
@@ -70,6 +77,15 @@ func AISearch(query string, maxResults int) []models.PersonRow {
 
 		if company != "" && name != "" {
 			email, conf, _ := FindEmailAnymailByCompany(name, company)
+			if email == "" {
+				// Fallback to Hunter
+				hunterEmail, hunterConf, _ := FindEmailHunter(name, company)
+				if hunterEmail != "" {
+					email = hunterEmail
+					conf = hunterConf
+				}
+			}
+
 			if email != "" {
 				row.Email = email
 				row.Confidence = conf
@@ -80,5 +96,5 @@ func AISearch(query string, maxResults int) []models.PersonRow {
 		out = append(out, row)
 	}
 
-	return out
+	return out, tokens
 }

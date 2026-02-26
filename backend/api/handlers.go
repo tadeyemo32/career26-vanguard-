@@ -109,13 +109,70 @@ func setModelHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "provider": body.Provider, "model": body.Model})
 }
 
+func getUserMeHandler(c *gin.Context) {
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var user models.User
+	if err := services.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"email":       user.Email,
+		"credits":     user.Credits,
+		"is_verified": user.IsVerified,
+	})
+}
+
+func logQueryTokens(c *gin.Context, queryType, queryText string, tokens int) {
+	if tokens == 0 {
+		return
+	}
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		return // Not an authenticated request or no user associated
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		return
+	}
+
+	record := &models.QueryLog{
+		UserID:     userID,
+		QueryType:  queryType,
+		QueryText:  queryText,
+		TokensUsed: tokens,
+	}
+	if err := services.DB.Create(record).Error; err != nil {
+		log.Printf("[API] Failed to log query tokens for user %d: %v", userID, err)
+	}
+
+	// Deduct credits
+	var usr models.User
+	if err := services.DB.First(&usr, userID).Error; err == nil {
+		usr.Credits -= tokens
+		services.DB.Save(&usr)
+	}
+}
+
 func extractDataHandler(c *gin.Context) {
 	var req models.ExtractDataRequest
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload."})
 		return
 	}
-	companies := services.ExtractCompanies(req.Payload)
+	companies, tokens := services.ExtractCompanies(req.Payload)
+	logQueryTokens(c, "ExtractCompanies", "Company extraction payload", tokens)
 	c.JSON(http.StatusOK, gin.H{"companies": companies})
 }
 
@@ -125,7 +182,15 @@ func aiSearchHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters."})
 		return
 	}
-	results := services.AISearch(req.Query, 5)
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 15
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	results, tokens := services.AISearch(req.Query, limit)
+	logQueryTokens(c, "AISearch", req.Query, tokens)
 	c.JSON(http.StatusOK, gin.H{"results": results})
 }
 
@@ -135,7 +200,8 @@ func companyIntelHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters."})
 		return
 	}
-	intel := services.RunCompanyIntel(req.CompanyName)
+	intel, tokens := services.RunCompanyIntel(req.CompanyName)
+	logQueryTokens(c, "CompanyIntel", req.CompanyName, tokens)
 	c.JSON(http.StatusOK, gin.H{"intel": intel})
 }
 
@@ -362,21 +428,34 @@ func findEmailHandler(c *gin.Context) {
 
 	add(fmt.Sprintf("Input: %q at %q", req.FullName, req.Company))
 
-	// ── Step 1: Resolve company → domain ─────────────────────────────────────
+	// ── Step 1: Anymail Finder (Direct Input) ─────────────────────────────────
+	// Anymail often expects the raw company NAME (e.g. "Atomico"), and does its own internal resolving.
+	// We call it immediately with exactly what the user provided, saving SERP latency if it succeeds.
+	add(fmt.Sprintf("Anymail Finder: searching %s @ %s…", req.FullName, req.Company))
+	email, conf, err := services.FindEmailAnymailByCompany(req.FullName, req.Company)
+	if err == nil && email != "" {
+		add(fmt.Sprintf("✓ Anymail found: %s (%.0f%% confidence)", email, conf*100))
+		add(fmt.Sprintf("→ Email: %s (confidence %.0f%%)", email, conf*100))
+		c.JSON(http.StatusOK, models.FindEmailResponse{Email: email, Confidence: conf, Logs: logs, Source: "Anymail Finder"})
+		return
+	}
+	add(fmt.Sprintf("Anymail: %v", err))
+
+	// ── Step 2: Resolve company → domain (for Hunter.io & fallbacks) ──────────
 	resolvedDomain := req.Company
 
-	// 1a. Try curated map first (fast, authoritative, no API call needed)
+	// 2a. Try curated map first (fast, authoritative, no API call needed)
 	if d, ok := resolveCompanyDomain(req.Company); ok {
 		resolvedDomain = d
 		add(fmt.Sprintf("Resolved via directory: %s → %s", req.Company, resolvedDomain))
 	} else {
-		// 1b. SERP fallback — score candidates by name-token match and prefer .com
+		// 2b. SERP fallback — score candidates by name-token match and prefer .com
 		add("Not in directory — resolving via web search…")
 		companyLower := strings.ToLower(req.Company)
 		companyTokens := strings.Fields(companyLower)
 
 		serpResults, serpErr := services.SerpGoogle(
-			fmt.Sprintf(`"%s" official website`, req.Company), 8,
+			fmt.Sprintf(`"%s" official website`, req.Company), 5, // Reduced from 8 to 5 to save time
 		)
 		if serpErr == nil {
 			type scored struct {
@@ -392,7 +471,7 @@ func findEmailHandler(c *gin.Context) {
 				link = strings.Split(link, "/")[0]
 				linkLower := strings.ToLower(link)
 
-				// Skip aggregators / social sites
+				// Skip aggregators / social sites //
 				bad := false
 				for _, skip := range []string{"linkedin", "google", "facebook", "twitter", "wikipedia", "bloomberg", "crunchbase", "glassdoor", "indeed", "yelp", "bing"} {
 					if strings.Contains(linkLower, skip) {
@@ -438,19 +517,6 @@ func findEmailHandler(c *gin.Context) {
 			add("Could not resolve domain — using company name directly.")
 		}
 	}
-
-	// ── Step 2: Anymail Finder ────────────────────────────────────────────────
-	// IMPORTANT: Anymail's /search/company.json expects the company NAME (e.g. "Atomico"),
-	// NOT a domain. Anymail resolves the domain internally. Passing a domain causes it to fail.
-	add(fmt.Sprintf("Anymail Finder: searching %s @ %s…", req.FullName, req.Company))
-	email, conf, err := services.FindEmailAnymailByCompany(req.FullName, req.Company)
-	if err == nil && email != "" {
-		add(fmt.Sprintf("✓ Anymail found: %s (%.0f%% confidence)", email, conf*100))
-		add(fmt.Sprintf("→ Email: %s (confidence %.0f%%)", email, conf*100))
-		c.JSON(http.StatusOK, models.FindEmailResponse{Email: email, Confidence: conf, Logs: logs, Source: "Anymail Finder"})
-		return
-	}
-	add(fmt.Sprintf("Anymail: %v", err))
 
 	// ── Step 3: Hunter.io ─────────────────────────────────────────────────────
 	add(fmt.Sprintf("Hunter.io: searching %s @ %s…", req.FullName, resolvedDomain))
@@ -530,4 +596,53 @@ func pipelineRunHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"results": results, "skipped": skipped})
+}
+
+// domainSearchHandler finds all emails at a company domain via Hunter.io domain-search.
+// Query param: ?company=<name or domain>
+func domainSearchHandler(c *gin.Context) {
+	company := strings.TrimSpace(c.Query("company"))
+	if company == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "company query param is required"})
+		return
+	}
+	people, err := services.DomainSearchHunter(company)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"results": people, "total": len(people)})
+}
+
+// amPipelineRunHandler triggers the AM firm evaluation workflow for one or more firm names.
+func amPipelineRunHandler(c *gin.Context) {
+	var req struct {
+		Firms []string `json:"firms"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request."})
+		return
+	}
+
+	type Result struct {
+		Firm   string             `json:"firm"`
+		People []models.PersonRow `json:"people"`
+		Error  string             `json:"error,omitempty"`
+	}
+
+	var results []Result
+	totalTokens := 0
+	for _, firm := range req.Firms {
+		people, tokens, err := services.ProcessAMFirm(firm)
+		totalTokens += tokens
+		if err != nil {
+			results = append(results, Result{Firm: firm, Error: err.Error()})
+		} else {
+			results = append(results, Result{Firm: firm, People: people})
+		}
+	}
+
+	logQueryTokens(c, "AMPipeline", fmt.Sprintf("Firms: %d", len(req.Firms)), totalTokens)
+
+	c.JSON(http.StatusOK, gin.H{"results": results})
 }

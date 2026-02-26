@@ -29,6 +29,10 @@ type claudeResponse struct {
 		Text string `json:"text"`
 		Type string `json:"type"`
 	} `json:"content"`
+	Usage struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
 	Error *struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
@@ -36,11 +40,11 @@ type claudeResponse struct {
 }
 
 // AskClaude sends a system + user prompt to the Anthropic Messages API.
-func AskClaude(model, sysPrompt, userPrompt string) string {
+func AskClaude(model, sysPrompt, userPrompt string) (string, int) {
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
 		log.Println("[Claude] ANTHROPIC_API_KEY not set")
-		return ""
+		return "", 0
 	}
 	if model == "" {
 		model = "claude-3-haiku-20240307"
@@ -57,7 +61,7 @@ func AskClaude(model, sysPrompt, userPrompt string) string {
 	req, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewBuffer(body))
 	if err != nil {
 		log.Printf("[Claude] request build error: %v", err)
-		return ""
+		return "", 0
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", apiKey)
@@ -66,7 +70,7 @@ func AskClaude(model, sysPrompt, userPrompt string) string {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("[Claude] request error: %v", err)
-		return ""
+		return "", 0
 	}
 	defer resp.Body.Close()
 
@@ -74,16 +78,16 @@ func AskClaude(model, sysPrompt, userPrompt string) string {
 	var result claudeResponse
 	if err := json.Unmarshal(raw, &result); err != nil {
 		log.Printf("[Claude] parse error: %v — body: %s", err, string(raw))
-		return ""
+		return "", 0
 	}
 	if result.Error != nil {
 		log.Printf("[Claude] API error [%s]: %s", result.Error.Type, result.Error.Message)
-		return ""
+		return "", 0
 	}
 	for _, block := range result.Content {
 		if block.Type == "text" {
-			return block.Text
+			return block.Text, result.Usage.InputTokens + result.Usage.OutputTokens
 		}
 	}
-	return ""
+	return "", 0
 }

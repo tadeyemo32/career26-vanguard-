@@ -17,22 +17,19 @@ type HeadcountBand struct {
 // Returns nil if outside the 25–500 range.
 func GetTargetRolesByHeadcount(headcount int) *HeadcountBand {
 	switch {
-	case headcount < 25:
-		// Too small — not worth cold-outreach at scale
-		return nil
 	case headcount < 50:
 		return &HeadcountBand{
-			Label: "Micro (25–49)",
-			Roles: []string{"CEO", "Partner", "CIO"},
+			Label: "< 50",
+			Roles: []string{"CEO", "Founder", "Partner", "CIO"},
 		}
-	case headcount < 200:
+	case headcount <= 200:
 		return &HeadcountBand{
-			Label: "Small (50–199)",
+			Label: "50-200",
 			Roles: []string{"HR Director"},
 		}
 	case headcount <= 500:
 		return &HeadcountBand{
-			Label: "Mid-size (200–500)",
+			Label: "200-500",
 			Roles: []string{"Early Careers Head", "HR Director"},
 		}
 	default:

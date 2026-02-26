@@ -31,7 +31,7 @@ func GetLLM() (provider, model string) {
 
 // AskLLM is the single call-site for all LLM usage in the backend.
 // It routes to OpenAI, Gemini, or Claude based on the active provider.
-func AskLLM(sysPrompt, userPrompt string) string {
+func AskLLM(sysPrompt, userPrompt string) (string, int) {
 	provider, model := GetLLM()
 	log.Printf("[LLM] Calling %s/%s", provider, model)
 

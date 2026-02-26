@@ -1,10 +1,34 @@
 package models
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // ========================
 // DATABASE ETL & RAG MODELS
 // ========================
+
+// User represents a registered user in the system
+type User struct {
+	gorm.Model
+	Email            string `gorm:"uniqueIndex;not null"`
+	PasswordHash     string `gorm:"not null"`
+	VerificationCode string
+	IsVerified       bool      `gorm:"default:false"`
+	Credits          int       `gorm:"default:100000"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+// QueryLog tracks token usage per user for LLM queries
+type QueryLog struct {
+	gorm.Model
+	UserID     uint   `gorm:"index;not null"`
+	QueryType  string // e.g., "ai-search", "company-intel", "extract"
+	QueryText  string
+	TokensUsed int `gorm:"default:0"`
+}
 
 // CompanyProfile represents the extracted and transformed target company logic
 type CompanyProfile struct {
@@ -60,6 +84,7 @@ type ExtractDataRequest struct {
 
 type AISearchRequest struct {
 	Query string `json:"query"`
+	Limit int    `json:"limit"`
 }
 
 type CompanyIntelRequest struct {

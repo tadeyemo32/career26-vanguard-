@@ -33,17 +33,20 @@ type geminiResponse struct {
 			} `json:"parts"`
 		} `json:"content"`
 	} `json:"candidates"`
+	UsageMetadata struct {
+		TotalTokenCount int `json:"totalTokenCount"`
+	} `json:"usageMetadata"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
 
 // AskGemini sends a system + user prompt to the Google Gemini REST API.
-func AskGemini(model, sysPrompt, userPrompt string) string {
+func AskGemini(model, sysPrompt, userPrompt string) (string, int) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		log.Println("[Gemini] GEMINI_API_KEY not set")
-		return ""
+		return "", 0
 	}
 	if model == "" {
 		model = "gemini-1.5-flash"
@@ -68,7 +71,7 @@ func AskGemini(model, sysPrompt, userPrompt string) string {
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		log.Printf("[Gemini] request error: %v", err)
-		return ""
+		return "", 0
 	}
 	defer resp.Body.Close()
 
@@ -76,14 +79,14 @@ func AskGemini(model, sysPrompt, userPrompt string) string {
 	var result geminiResponse
 	if err := json.Unmarshal(raw, &result); err != nil {
 		log.Printf("[Gemini] parse error: %v", err)
-		return ""
+		return "", 0
 	}
 	if result.Error != nil {
 		log.Printf("[Gemini] API error: %s", result.Error.Message)
-		return ""
+		return "", 0
 	}
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
-		return ""
+		return "", 0
 	}
-	return result.Candidates[0].Content.Parts[0].Text
+	return result.Candidates[0].Content.Parts[0].Text, result.UsageMetadata.TotalTokenCount
 }

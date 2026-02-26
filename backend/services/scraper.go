@@ -97,7 +97,7 @@ Extracted Homepage Payload:
 
 What is their likely email?`, fullName, companyName, urlTarget, emailsStr, text)
 
-	result := AskOpenAI(sysPrompt, userPrompt)
+	result, _ := AskOpenAI(sysPrompt, userPrompt)
 
 	if result == "" || strings.ToUpper(result) == "NOT_FOUND" {
 		return "", 0.0, fmt.Errorf("unable to find email") // requested verbatim by user prompt

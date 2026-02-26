@@ -13,7 +13,7 @@ import (
 // 2. Scrape size via LLM/GoQuery
 // 3. Size-based dynamic role targeting
 // 4. Fetch people & emails natively
-func RunCompanyIntel(companyName string) *models.CompanyIntelResponse {
+func RunCompanyIntel(companyName string) (*models.CompanyIntelResponse, int) {
 	resp := &models.CompanyIntelResponse{
 		SourceLog:       []string{},
 		TargetRolesUsed: []string{},
@@ -59,7 +59,7 @@ func RunCompanyIntel(companyName string) *models.CompanyIntelResponse {
 	}
 
 	sysPrompt := "You are a company analytics bot. Read the provided search results and determine the estimated employee headcount for the company. Return ONLY an integer (e.g. '55'). If you don't know, return '100'."
-	sizeText := AskOpenAI(sysPrompt, combinedSnippets)
+	sizeText, tokens := AskOpenAI(sysPrompt, combinedSnippets)
 
 	estimatedSize, err := strconv.Atoi(sizeText)
 	if err != nil || estimatedSize == 0 {
@@ -98,5 +98,5 @@ func RunCompanyIntel(companyName string) *models.CompanyIntelResponse {
 	resp.PeopleFound = people
 	resp.SourceLog = append(resp.SourceLog, fmt.Sprintf("Operation complete. Recovered %d profiles with confirmed OSINT signatures.", len(people)))
 
-	return resp
+	return resp, tokens
 }

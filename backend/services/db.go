@@ -29,6 +29,8 @@ func InitDB() {
 	}
 
 	err = DB.AutoMigrate(
+		&models.User{},
+		&models.QueryLog{},
 		&models.CompanyProfile{},
 		&models.PersonRow{},
 		&models.WebSnippet{},
