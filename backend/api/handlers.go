@@ -21,6 +21,16 @@ func maskKey(v string) string {
 	return v[:6] + "..." + v[len(v)-4:]
 }
 
+// keyStatusHandler returns only boolean connected status for each key.
+// Available to all authenticated users (not just admins) so KeyGate works for everyone.
+func keyStatusHandler(c *gin.Context) {
+	result := gin.H{}
+	for _, id := range keyIDs {
+		result[id] = os.Getenv(id) != ""
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 func getKeys(c *gin.Context) {
 	result := gin.H{}
 	for _, id := range keyIDs {

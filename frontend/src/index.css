@@ -16,56 +16,77 @@
   --color-red: #f87171;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 * {
   box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html,
 body,
 #root {
   height: 100%;
+  background: #09090f;
+  color: #d8dce8;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background: #09090f;
-  color: #d8dce8;
-  font-size: 14px;
-  overflow: hidden;
+  font-family: 'Inter', sans-serif;
 }
 
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
 }
 
-::-webkit-scrollbar-track {
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1e2235;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #262d42;
+}
+
+/* Base Scrollbar for the app */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09090f;
+}
+
 ::-webkit-scrollbar-thumb {
-  background: #1e2330;
-  border-radius: 3px;
+  background: #1e2235;
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a3148;
+  background: #3b5cbd;
 }
 
-/* Spinner */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+/* Animations */
+@keyframes pulse-soft {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
   }
 }
 
-.spin {
-  animation: spin 0.7s linear infinite;
-}
-
-/* Confidence bar fill animation */
-.conf-bar {
-  transition: width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+.animate-pulse-soft {
+  animation: pulse-soft 2s infinite;
 }

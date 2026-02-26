@@ -24,13 +24,9 @@ const JOB_TITLES = [
   "Business Development Manager", "Account Manager",
 ];
 
+// File-accept string for FileUploadZone
 const ACCEPTED = '.csv,.txt,.tsv,.xlsx,.xls,.ods,.pdf,.numbers';
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8765/api';
 
-async function safeJson(res: Response) {
-  const t = await res.text();
-  try { return JSON.parse(t); } catch { return { error: t || res.statusText }; }
-}
 
 // ── Key status type ───────────────────────────────────────────────────────────
 type KeyStatus = Record<string, boolean>;
@@ -400,16 +396,10 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
   const find = async () => {
     if (!name || !company) return;
     setLoading(true); setLogs([]); setEmail(''); setConf(0); setErr(''); setSource('');
-    try {
-      const res = await fetch(`${API_BASE}/find-email`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: name.trim(), company: company.trim(), resolve_only: resolve }),
-      });
-      const data = await safeJson(res);
-      if (data.logs) setLogs(data.logs);
-      if (data.email) { setEmail(data.email); setConf(data.confidence); setSource(data.source || ''); }
-      if (!data.email && !data.logs?.length) setErr(data.error || 'No result returned');
-    } catch (e: any) { setErr(e.message); }
+    const res = await api.findEmail(name.trim(), company.trim(), resolve);
+    if (res.logs?.length) setLogs(res.logs);
+    if (res.email) { setEmail(res.email); setConf(res.confidence); setSource(res.source || ''); }
+    if (!res.email && !res.logs?.length) setErr(res.error || 'No result returned');
     setLoading(false);
   };
 
@@ -560,22 +550,23 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
 
   const refreshStatus = async () => {
     try {
-      const d = await fetch(`${API_BASE}/keys`).then(r => r.json());
-      setServerKeys(d);
-      // Propagate boolean connected map upwards for key gate
-      const bools: KeyStatus = {};
-      Object.entries(d).forEach(([k, v]: any) => { bools[k] = v.connected; });
-      onKeysChange(bools);
+      // Admin users get full key details; others get boolean status only
+      const { keys, error } = await api.getKeys();
+      if (!error) {
+        setServerKeys(keys as any);
+        const bools: KeyStatus = {};
+        Object.entries(keys).forEach(([k, v]: any) => { bools[k] = typeof v === 'object' ? v.connected : !!v; });
+        onKeysChange(bools);
+      }
     } catch { /* ignore */ }
   };
 
   useEffect(() => {
     refreshStatus();
-    // Load current provider/model from backend
-    fetch(`${API_BASE}/model`).then(r => r.json()).then(d => {
+    api.getModel().then(d => {
       if (d.provider) setProvider(d.provider);
       if (d.model) setModel(d.model);
-    }).catch(() => { });
+    });
   }, []);
 
 
@@ -595,23 +586,17 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
       KEYS_CFG.forEach(({ id }) => {
         if (editing[id] && drafts[id]?.trim()) payload[id] = drafts[id].trim();
       });
-      const modelRes = fetch(`${API_BASE}/model`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, model }),
-      });
 
       const hasKeyChanges = Object.keys(payload).length > 0;
       if (hasKeyChanges) {
-        const res = await fetch(`${API_BASE}/keys`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error(await res.text());
+        const { error } = await api.saveKeys(payload);
+        if (error) throw new Error(error);
         setEditing({});
         setDrafts({});
         await refreshStatus();
       }
-      await modelRes;
+      const { error: modelErr } = await api.setModel(provider, model);
+      if (modelErr) throw new Error(modelErr);
       setSaved(true);
       setTimeout(() => setSaved(false), 4000);
     } catch (e: any) { setErr(e.message); }
@@ -810,6 +795,12 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
+  // DEV BYPASS: if VITE_DEV_TOKEN is set (local run.sh), auto-authenticate
+  const devToken = import.meta.env.VITE_DEV_TOKEN as string | undefined;
+  if (devToken) {
+    setAuthToken(devToken);
+  }
+
   const [isAuthenticated, setIsAuthenticated] = useState(!!getAuthToken());
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -839,11 +830,7 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
 
   useEffect(() => {
     api.checkHealth().then(setHealth);
-    fetch(`${API_BASE}/keys`, { headers: { 'Authorization': `Bearer ${getAuthToken()}`, 'X-Vanguard-Key': import.meta.env.VITE_VANGUARD_API_KEY || '' } }).then(r => r.json()).then((d: Record<string, any>) => {
-      const bools: KeyStatus = {};
-      Object.entries(d).forEach(([k, v]) => { bools[k] = typeof v === 'object' ? v.connected : !!v; });
-      setKeyStatus(bools);
-    }).catch(() => { });
+    api.getKeyStatus().then(setKeyStatus);
   }, []);
 
   const goToSettings = () => setTab('Settings');

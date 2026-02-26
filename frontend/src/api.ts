@@ -170,6 +170,25 @@ export const api = {
         }
     },
 
+    // Returns boolean connected status for each key — accessible to all authenticated users
+    async getKeyStatus(): Promise<Record<string, boolean>> {
+        try {
+            const res = await fetch(`${API_BASE}/key-status`, {
+                headers: getDefaultHeaders(),
+            });
+            if (!res.ok) return {};
+            const data = await safeJson(res);
+            // Normalize: handle both boolean and { connected: boolean } shapes
+            const bools: Record<string, boolean> = {};
+            Object.entries(data).forEach(([k, v]) => {
+                bools[k] = typeof v === 'object' ? (v as any).connected : !!v;
+            });
+            return bools;
+        } catch {
+            return {};
+        }
+    },
+
     async extractCompanies(payload: string): Promise<{ companies: string[]; error?: string }> {
         try {
             const res = await fetch(`${API_BASE}/extract`, {
@@ -239,7 +258,8 @@ export const api = {
             if (!res.ok) {
                 return { intel: null, error: data.error || "Failed request" };
             }
-            return { intel: data.intel || null };
+            // Backend may return flat object or { intel: {...} } — handle both
+            return { intel: data.intel ?? data ?? null };
         } catch (e: any) {
             return { intel: null, error: e.message };
         }
@@ -263,18 +283,23 @@ export const api = {
         }
     },
 
-    async findEmail(fullName: string, company: string): Promise<{ email: string; confidence: number; error?: string }> {
+    async findEmail(fullName: string, company: string, resolveOnly?: boolean): Promise<{ email: string; confidence: number; source: string; logs: string[]; error?: string }> {
         try {
             const res = await fetch(`${API_BASE}/find-email`, {
                 method: "POST",
                 headers: getDefaultHeaders(),
-                body: JSON.stringify({ full_name: fullName, company }),
+                body: JSON.stringify({ full_name: fullName, company, resolve_only: resolveOnly ?? true }),
             });
             const data = await safeJson(res);
-            if (!res.ok) return { email: "", confidence: 0, error: data.error };
-            return { email: data.email || "", confidence: data.confidence || 0 };
+            if (!res.ok) return { email: "", confidence: 0, source: "", logs: [], error: data.error };
+            return {
+                email: data.email || "",
+                confidence: data.confidence || 0,
+                source: data.source || "",
+                logs: data.logs || [],
+            };
         } catch (e: any) {
-            return { email: "", confidence: 0, error: e.message };
+            return { email: "", confidence: 0, source: "", logs: [], error: e.message };
         }
     },
 

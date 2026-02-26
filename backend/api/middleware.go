@@ -28,6 +28,17 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		tokenString := parts[1]
 
+		// DEV BYPASS: if APP_ENV=dev and token matches DEV_BYPASS_TOKEN, inject admin session
+		if os.Getenv("APP_ENV") == "dev" {
+			bypassToken := os.Getenv("DEV_BYPASS_TOKEN")
+			if bypassToken != "" && tokenString == bypassToken {
+				c.Set("userID", uint(1))
+				c.Set("devBypass", true)
+				c.Next()
+				return
+			}
+		}
+
 		userID, err := services.ValidateJWT(tokenString)
 		if err != nil {
 			log.Printf("Auth Error: %v", err)
@@ -62,6 +73,12 @@ func BackendKeyMiddleware() gin.HandlerFunc {
 // Must be used after AuthMiddleware.
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// DEV BYPASS: if dev bypass is active, treat as admin
+		if _, isBypass := c.Get("devBypass"); isBypass {
+			c.Next()
+			return
+		}
+
 		userID, exists := c.Get("userID")
 		if !exists {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})

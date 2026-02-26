@@ -28,6 +28,9 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		apiGroup.GET("/auth/me", getUserMeHandler)
 
+		// Key status (boolean only) - accessible to all authenticated users for KeyGate
+		apiGroup.GET("/key-status", keyStatusHandler)
+
 		// Proctect API keys - Admin Only
 		apiGroup.GET("/keys", AdminMiddleware(), getKeys)
 		apiGroup.POST("/keys", AdminMiddleware(), saveKeys)
