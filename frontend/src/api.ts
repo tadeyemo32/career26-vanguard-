@@ -283,23 +283,36 @@ export const api = {
         }
     },
 
-    async findEmail(fullName: string, company: string, resolveOnly?: boolean): Promise<{ email: string; confidence: number; source: string; logs: string[]; error?: string }> {
+    async findEmail(
+        payload: {
+            search_type: "person" | "company" | "decision_maker" | "linkedin";
+            full_name?: string;
+            company?: string;
+            domain?: string;
+            linkedin_url?: string;
+            job_roles?: string;
+        }
+    ): Promise<{
+        email?: string;
+        confidence?: number;
+        source: string;
+        emails?: Array<{ email: string; full_name?: string; job_title?: string; confidence?: number; source: string }>;
+        logs: string[];
+        error?: string;
+    }> {
         try {
             const res = await fetch(`${API_BASE}/find-email`, {
                 method: "POST",
                 headers: getDefaultHeaders(),
-                body: JSON.stringify({ full_name: fullName, company, resolve_only: resolveOnly ?? true }),
+                body: JSON.stringify(payload)
             });
             const data = await safeJson(res);
-            if (!res.ok) return { email: "", confidence: 0, source: "", logs: [], error: data.error };
-            return {
-                email: data.email || "",
-                confidence: data.confidence || 0,
-                source: data.source || "",
-                logs: data.logs || [],
-            };
+            if (!res.ok) {
+                return { logs: [], source: "", error: data.error || `HTTP ${res.status}` };
+            }
+            return data;
         } catch (e: any) {
-            return { email: "", confidence: 0, source: "", logs: [], error: e.message };
+            return { logs: [], source: "", error: e.message };
         }
     },
 

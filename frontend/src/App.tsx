@@ -3,7 +3,7 @@ import {
   Activity, Search, Settings, Check, Download, Building,
   Terminal, Layers, Mail, ExternalLink, RefreshCw, Upload,
   X, Key, Cpu, FileText, Eye, EyeOff, Trash2, Lock, AlertTriangle,
-  ShieldCheck, LogOut, Users, Trophy, Loader2, UserCircle
+  ShieldCheck, LogOut, Users, Trophy, Loader2, UserCircle, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, getAuthToken, setAuthToken } from './api';
@@ -216,25 +216,61 @@ function FileUploadZone({ onText }: { onText: (t: string) => void }) {
 
 
 // ── Find Email Tab ─────────────────────────────────────────────────────────────
+type SearchType = "person" | "company" | "decision_maker" | "linkedin";
+
 function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onGoToSettings: () => void }) {
+  const [mode, setMode] = useState<SearchType>("person");
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
+  const [linkedInUrl, setLinkedInUrl] = useState('');
+  const [jobRoles, setJobRoles] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
-  const [email, setEmail] = useState('');
-  const [conf, setConf] = useState(0);
+  const [emails, setEmails] = useState<Array<{ email: string; full_name?: string; job_title?: string; confidence?: number; source: string }>>([]);
   const [source, setSource] = useState('');
   const [err, setErr] = useState('');
 
   const missingEmail = !keyStatus['ANYMAIL_API_KEY'] && !keyStatus['HUNTER_API_KEY'];
 
   const find = async () => {
-    if (!name || !company) return;
-    setLoading(true); setLogs([]); setEmail(''); setConf(0); setErr(''); setSource('');
-    const res = await api.findEmail(name.trim(), company.trim());
+    // Validation
+    if (mode === "person" && (!name || !company)) return;
+    if (mode === "company" && !company) return;
+    if (mode === "decision_maker" && (!company || !jobRoles)) return;
+    if (mode === "linkedin" && !linkedInUrl) return;
+
+    setLoading(true); setLogs([]); setEmails([]); setErr(''); setSource('');
+
+    const payload: any = { search_type: mode };
+    if (mode === "person") {
+      payload.full_name = name.trim();
+      payload.company = company.trim();
+    } else if (mode === "company") {
+      payload.domain = company.trim(); // mapping to domain
+    } else if (mode === "decision_maker") {
+      payload.domain = company.trim();
+      payload.job_roles = jobRoles.trim();
+    } else if (mode === "linkedin") {
+      payload.linkedin_url = linkedInUrl.trim();
+    }
+
+    const res = await api.findEmail(payload);
+
     if (res.logs?.length) setLogs(res.logs);
-    if (res.email) { setEmail(res.email); setConf(res.confidence); setSource(res.source || ''); }
-    if (!res.email && !res.logs?.length) setErr(res.error || 'No result returned');
+    if (res.emails?.length) {
+      setEmails(res.emails);
+      setSource(res.source || res.emails[0].source || '');
+    } else if (res.email) {
+      // Legacy fallback
+      setEmails([{ email: res.email, confidence: res.confidence, source: res.source }]);
+      setSource(res.source || '');
+    }
+
+    if (!res.emails?.length && !res.email && !res.logs?.length) {
+      setErr(res.error || 'No result returned');
+    }
+
     setLoading(false);
   };
 
@@ -242,31 +278,76 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
     return <KeyGate tab="Find Email" keyStatus={keyStatus} onGoToSettings={onGoToSettings}><></></KeyGate>;
   }
 
-  const confColor = conf >= 0.9 ? 'text-emerald-400' : conf >= 0.6 ? 'text-yellow-400' : 'text-orange-400';
-  const confLabel = conf >= 0.9 ? 'Verified by API' : conf >= 0.6 ? 'High confidence' : 'Medium confidence';
+  const getConfDetails = (conf?: number) => {
+    const c = conf || 1.0;
+    const color = c >= 0.9 ? 'text-emerald-400' : c >= 0.6 ? 'text-yellow-400' : 'text-orange-400';
+    const label = c >= 0.9 ? 'Verified by API' : c >= 0.6 ? 'High confidence' : 'Medium confidence';
+    return { color, label, pct: Math.round(c * 100) };
+  };
+
+  const inputCls = "w-full bg-[#09090f] border border-[#262d42] rounded-lg px-4 py-2.5 text-sm text-white placeholder-[#363d52] focus:outline-none focus:border-[#3b5cbd] focus:ring-1 focus:ring-[#3b5cbd]/30 transition-all";
+  const sectionLabelCls = "block text-xs font-medium text-[#6b7494] mb-2";
 
   return (
     <div className="max-w-xl space-y-5">
-      <div className="bg-[#0f1018] border border-[#1e2235] rounded-xl p-6 space-y-5">
-        {/* Active sources indicator */}
-        <div className="flex items-center gap-2 text-[11px] text-[#6b7494]">
-          Sources active:
-          {keyStatus['ANYMAIL_API_KEY'] && <span className="bg-emerald-400/10 text-emerald-400 px-2 py-0.5 rounded-full">Anymail</span>}
-          {keyStatus['HUNTER_API_KEY'] && <span className="bg-emerald-400/10 text-emerald-400 px-2 py-0.5 rounded-full">Hunter.io</span>}
+      <div className="bg-[#0f1018] border border-[#1e2235] rounded-xl p-6 space-y-6">
+
+        {/* Segmented Control */}
+        <div className="flex bg-[#09090f] border border-[#1e2235] p-1 rounded-lg">
+          {(['person', 'company', 'decision_maker', 'linkedin'] as SearchType[]).map(t => (
+            <button key={t} onClick={() => setMode(t)}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${mode === t ? 'bg-[#1e2235] text-white shadow-sm' : 'text-[#6b7494] hover:text-[#d8dce8]'
+                }`}>
+              {t === 'person' ? 'Person' : t === 'company' ? 'Company' : t === 'decision_maker' ? 'Role' : 'LinkedIn'}
+            </button>
+          ))}
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-[#6b7494] mb-2">Full name</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Adam Milner"
-            className="w-full bg-[#09090f] border border-[#262d42] rounded-lg px-4 py-2.5 text-sm text-white placeholder-[#363d52] focus:outline-none focus:border-[#3b5cbd] focus:ring-1 focus:ring-[#3b5cbd]/30 transition-all" />
+        <div className="space-y-4">
+          {mode === 'person' && (
+            <>
+              <div>
+                <label className={sectionLabelCls}>Full name</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="Adam Milner" className={inputCls} />
+              </div>
+              <div>
+                <label className={sectionLabelCls}>Company or domain</label>
+                <input value={company} onChange={e => setCompany(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="Man Group or man.com" className={inputCls} />
+              </div>
+            </>
+          )}
+
+          {mode === 'company' && (
+            <div>
+              <label className={sectionLabelCls}>Company or domain</label>
+              <input value={company} onChange={e => setCompany(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="man.com (recommended) or Man Group" className={inputCls} />
+              <p className="text-[10px] text-[#6b7494] mt-2">Finds up to 20 verified emails at this company.</p>
+            </div>
+          )}
+
+          {mode === 'decision_maker' && (
+            <>
+              <div>
+                <label className={sectionLabelCls}>Role category</label>
+                <input value={jobRoles} onChange={e => setJobRoles(e.target.value)} placeholder="e.g. ceo, marketing, hr" className={inputCls} />
+                <p className="text-[10px] text-[#6b7494] mt-1.5">Comma-separated list of roles or titles.</p>
+              </div>
+              <div>
+                <label className={sectionLabelCls}>Company or domain</label>
+                <input value={company} onChange={e => setCompany(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="man.com or Man Group" className={inputCls} />
+              </div>
+            </>
+          )}
+
+          {mode === 'linkedin' && (
+            <div>
+              <label className={sectionLabelCls}>LinkedIn Profile URL</label>
+              <input value={linkedInUrl} onChange={e => setLinkedInUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()} placeholder="https://linkedin.com/in/satyanadella/" className={inputCls} />
+            </div>
+          )}
         </div>
-        <div>
-          <label className="block text-xs font-medium text-[#6b7494] mb-2">Company or domain</label>
-          <input value={company} onChange={e => setCompany(e.target.value)} onKeyDown={e => e.key === 'Enter' && find()}
-            placeholder="Man Group or man.com"
-            className="w-full bg-[#09090f] border border-[#262d42] rounded-lg px-4 py-2.5 text-sm text-white placeholder-[#363d52] focus:outline-none focus:border-[#3b5cbd] focus:ring-1 focus:ring-[#3b5cbd]/30 transition-all" />
-        </div>
-        <motion.button onClick={find} disabled={loading || !name || !company}
+
+        <motion.button onClick={find} disabled={loading}
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
           className="w-full flex items-center justify-center gap-2 bg-[#3b5cbd] hover:bg-[#4d70d9] disabled:opacity-40 text-white text-sm font-medium rounded-lg py-2.5 transition-all border border-white/10">
           {loading ? <><RefreshCw size={14} className="spin" />Finding…</> : <><Mail size={14} />Find email</>}
@@ -276,45 +357,71 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
       <AnimatePresence>
         {(logs.length > 0 || err) && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            className="bg-[#0f1018] border border-[#1e2235] rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-[#1e2235] text-xs font-semibold text-[#6b7494] tracking-wide uppercase">Log</div>
-            <div className="bg-[#06070d] px-5 py-4 font-mono text-[11px] leading-7 space-y-0.5 min-h-[60px]">
-              {logs.map((l, i) => (
-                <div key={i} className={l.startsWith('→') ? 'text-emerald-400 font-semibold mt-1' : l.startsWith('✓') ? 'text-emerald-400' : 'text-[#4a5273]'}>{l}</div>
-              ))}
-              {err && <div className="text-red-400">Error: {err}</div>}
+            className="bg-[#0f1018] border border-[#1e2235] rounded-xl overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[#1e2235] bg-[#0c0d12]">
+              <div className="text-xs font-semibold text-[#6b7494] uppercase tracking-wider">Search Log</div>
+              <div className="flex items-center gap-2 text-[10px] text-[#6b7494]">
+                Sources:
+                {keyStatus['ANYMAIL_API_KEY'] && <span className="bg-emerald-400/10 text-emerald-400 px-1.5 py-0.5 rounded">Anymail</span>}
+                {keyStatus['HUNTER_API_KEY'] && <span className="bg-emerald-400/10 text-emerald-400 px-1.5 py-0.5 rounded">Hunter</span>}
+              </div>
             </div>
-            {email && (
-              <div className="flex items-center justify-between px-5 py-4 bg-emerald-400/5 border-t border-emerald-400/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-400/10 flex items-center justify-center">
-                    <Check size={16} className="text-emerald-400" />
-                  </div>
-                  <div>
-                    <div className="text-white font-semibold text-sm">{email}</div>
-                    <div className={`text-xs mt-0.5 ${confColor}`}>{Math.round(conf * 100)}% — {confLabel} {source && `via ${source}`}</div>
-                  </div>
+
+            <div className="bg-[#06070d] px-5 py-4 font-mono text-[11px] leading-7 space-y-0.5 min-h-[60px] max-h-[250px] overflow-y-auto">
+              {logs.map((l, i) => (
+                <div key={i} className={l.startsWith('→') || l.startsWith('✓') ? 'text-emerald-400' : 'text-[#6b7494]'}>{l}</div>
+              ))}
+              {err && <div className="text-red-400 font-semibold mt-2">Error: {err}</div>}
+            </div>
+
+            {emails.length > 0 && (
+              <div className="border-t border-[#1e2235] bg-[#0c0d12]">
+                <div className="px-5 py-3 border-b border-[#1e2235] flex items-center justify-between">
+                  <div className="text-xs font-semibold text-white">Results ({emails.length})</div>
+                  <div className="text-[10px] text-emerald-400 flex items-center gap-1"><Check size={12} /> All verified deliverable</div>
                 </div>
-                <button onClick={() => navigator.clipboard.writeText(email)}
-                  className="text-xs text-[#6b7494] hover:text-white px-3 py-1.5 rounded-md bg-[#141620] border border-[#1e2235] transition-all">
-                  Copy
-                </button>
+                <div className="max-h-[300px] overflow-y-auto divide-y divide-[#1e2235]">
+                  {emails.map((e, i) => {
+                    const c = getConfDetails(e.confidence);
+                    return (
+                      <div key={i} className="flex items-center justify-between px-5 py-3.5 hover:bg-[#12141d] transition-colors group">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 w-7 h-7 rounded-md bg-[#1e2235] border border-[#262d42] flex items-center justify-center text-[#6b7494] text-xs font-bold">
+                            {e.full_name ? e.full_name.charAt(0).toUpperCase() : <Mail size={12} />}
+                          </div>
+                          <div>
+                            <div className="text-white font-medium text-sm flex items-center gap-2">
+                              {e.email}
+                              <button onClick={() => navigator.clipboard.writeText(e.email)} className="opacity-0 group-hover:opacity-100 text-[#6b7494] hover:text-white transition-all">
+                                <Copy size={12} />
+                              </button>
+                            </div>
+                            <div className="text-xs text-[#6b7494] mt-0.5 flex items-center gap-2">
+                              {e.full_name && <span className="text-[#8090a8]">{e.full_name}</span>}
+                              {e.job_title && <><span className="text-[#363d52]">•</span> <span className="text-[#8090a8] truncate max-w-[150px]">{e.job_title}</span></>}
+                            </div>
+                            <div className={`text-[10px] mt-1 ${c.color}`}>{c.pct}% — {c.label} via {e.source || source}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
-            {!email && !loading && logs.length > 0 && !err && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="flex items-center gap-3 px-5 py-4 bg-red-400/5 border-t border-red-400/20">
+
+            {!emails.length && !loading && logs.length > 0 && !err && (
+              <div className="flex items-center gap-3 px-5 py-4 bg-red-400/5 border-t border-red-400/20">
                 <div className="w-8 h-8 rounded-lg bg-red-400/10 flex items-center justify-center flex-shrink-0">
                   <X size={15} className="text-red-400" />
                 </div>
                 <div>
-                  <div className="text-red-400 font-semibold text-sm">No email found</div>
+                  <div className="text-red-400 font-medium text-sm">No emails found</div>
                   <div className="text-[11px] text-[#6b7494] mt-0.5 leading-relaxed">
-                    Neither Anymail nor Hunter.io returned a verified address for this person.
-                    Check the name &amp; company spelling, or top up API credits.
+                    No verified addresses were returned for this query. Attempting a different search mode or checking spelling may help.
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
           </motion.div>
         )}

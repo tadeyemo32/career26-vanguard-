@@ -428,53 +428,198 @@ func resolveCompanyDomain(companyInput string) (string, bool) {
 	return "", false
 }
 
-// findEmailHandler: Anymail → Hunter.io using raw company input — no domain resolution.
-// The user's input is passed as-is to both APIs. They can type a company name OR a domain.
+// findEmailHandler routes searches to Anymail based on SearchType.
+// Supported search types: person, company, decision_maker, linkedin.
 func findEmailHandler(c *gin.Context) {
 	var req models.FindEmailRequest
 	if err := c.BindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request."})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format."})
 		return
 	}
 
+	req.SearchType = strings.TrimSpace(req.SearchType)
 	req.FullName = strings.TrimSpace(req.FullName)
 	req.Company = strings.TrimSpace(req.Company)
+	req.Domain = strings.TrimSpace(req.Domain)
+	req.LinkedInURL = strings.TrimSpace(req.LinkedInURL)
+	req.JobRoles = strings.TrimSpace(req.JobRoles)
 
-	if req.FullName == "" || req.Company == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "full_name and company are required."})
-		return
+	// Fallback to legacy behavior if not specified
+	if req.SearchType == "" {
+		if req.LinkedInURL != "" {
+			req.SearchType = "linkedin"
+		} else {
+			req.SearchType = "person"
+		}
 	}
 
 	var logs []string
 	add := func(s string) { logs = append(logs, s) }
 
-	add(fmt.Sprintf("Input: %q at %q", req.FullName, req.Company))
-
-	// ── Step 1: Anymail Finder (raw company input) ─────────────────────────────
-	add(fmt.Sprintf("Anymail Finder: searching %s @ %s…", req.FullName, req.Company))
-	email, conf, err := services.FindEmailAnymailByCompany(req.FullName, req.Company)
-	if err == nil && email != "" {
-		add(fmt.Sprintf("✓ Anymail found: %s (%.0f%% confidence)", email, conf*100))
-		add(fmt.Sprintf("→ Email: %s (confidence %.0f%%)", email, conf*100))
-		c.JSON(http.StatusOK, models.FindEmailResponse{Email: email, Confidence: conf, Logs: logs, Source: "Anymail Finder"})
-		return
+	// Ensure we have a domain or company for non-linkedin searches
+	targetDomain := req.Domain
+	if targetDomain == "" {
+		targetDomain = req.Company
 	}
-	add(fmt.Sprintf("Anymail: %v", err))
 
-	// ── Step 2: Hunter.io (raw company input) ────────────────────────────────
-	add(fmt.Sprintf("Hunter.io: searching %s @ %s…", req.FullName, req.Company))
-	email, conf, err = services.FindEmailHunter(req.FullName, req.Company)
-	if err == nil && email != "" {
-		add(fmt.Sprintf("✓ Hunter.io found: %s (%.0f%% confidence)", email, conf*100))
-		add(fmt.Sprintf("→ Email: %s (confidence %.0f%%)", email, conf*100))
-		c.JSON(http.StatusOK, models.FindEmailResponse{Email: email, Confidence: conf, Logs: logs, Source: "Hunter.io"})
-		return
+	switch req.SearchType {
+	case "company":
+		if targetDomain == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "domain or company is required for Company search."})
+			return
+		}
+		add(fmt.Sprintf("Input: Company Search for %q", targetDomain))
+		add("Anymail Finder: Searching for all emails at company…")
+
+		results, err := services.FindEmailsAnymailByCompanyDomain(targetDomain)
+		if err != nil {
+			add(fmt.Sprintf("Anymail: %v", err))
+			c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+			return
+		}
+
+		add(fmt.Sprintf("✓ Found %d verified emails.", len(results)))
+
+		var responseEmails []models.FindEmailResultItem
+		for _, r := range results {
+			responseEmails = append(responseEmails, models.FindEmailResultItem{
+				Email:    r.Email,
+				FullName: r.FullName,
+				JobTitle: r.JobTitle,
+				Source:   "Anymail Finder",
+			})
+		}
+
+		c.JSON(http.StatusOK, models.FindEmailResponse{
+			Emails: responseEmails,
+			Logs:   logs,
+			Source: "Anymail Finder",
+		})
+
+	case "decision_maker":
+		if targetDomain == "" || req.JobRoles == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Both domain/company and job_roles are required."})
+			return
+		}
+		add(fmt.Sprintf("Input: Decision Maker Search for %q roles at %q", req.JobRoles, targetDomain))
+		add("Anymail Finder: Searching for decision makers…")
+
+		results, err := services.FindDecisionMakerAnymail(targetDomain, req.JobRoles)
+		if err != nil {
+			add(fmt.Sprintf("Anymail: %v", err))
+			c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+			return
+		}
+
+		add(fmt.Sprintf("✓ Found %d verified decision makers.", len(results)))
+
+		var responseEmails []models.FindEmailResultItem
+		for _, r := range results {
+			responseEmails = append(responseEmails, models.FindEmailResultItem{
+				Email:    r.Email,
+				FullName: r.FullName,
+				JobTitle: r.JobTitle,
+				Source:   "Anymail Finder",
+			})
+		}
+
+		c.JSON(http.StatusOK, models.FindEmailResponse{
+			Emails: responseEmails,
+			Logs:   logs,
+			Source: "Anymail Finder",
+		})
+
+	case "linkedin":
+		if req.LinkedInURL == "" && strings.Contains(req.Company, "linkedin.com/in/") {
+			req.LinkedInURL = req.Company // auto-detect legacy UI behavior
+		}
+		if req.LinkedInURL == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "linkedin_url is required."})
+			return
+		}
+		add(fmt.Sprintf("Input: LinkedIn URL %q", req.LinkedInURL))
+		add("Anymail Finder (LinkedIn URL): looking up profile…")
+		result, err := services.FindEmailAnymailByLinkedIn(req.LinkedInURL)
+		if err != nil {
+			add(fmt.Sprintf("Anymail LinkedIn: %v", err))
+			add("No verified email found via LinkedIn URL.")
+			c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+			return
+		}
+		if result.Email != "" {
+			add(fmt.Sprintf("✓ Found: %s", result.Email))
+			if result.FullName != "" {
+				add(fmt.Sprintf("  Name: %s — %s @ %s", result.FullName, result.JobTitle, result.Company))
+			}
+			c.JSON(http.StatusOK, models.FindEmailResponse{
+				Email:      result.Email, // legacy single return
+				Confidence: 1.0,
+				Emails: []models.FindEmailResultItem{{
+					Email:      result.Email,
+					FullName:   result.FullName,
+					JobTitle:   result.JobTitle,
+					Confidence: 1.0,
+					Source:     "Anymail Finder",
+				}},
+				Logs:   logs,
+				Source: "Anymail Finder (LinkedIn)",
+			})
+			return
+		}
+		add("Anymail LinkedIn: no verified email found.")
+		c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+
+	default: // "person"
+		if req.FullName == "" || req.Company == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "full_name and company are required for Person search."})
+			return
+		}
+
+		add(fmt.Sprintf("Input: Person Search for %q at %q", req.FullName, req.Company))
+
+		// Step 1: Anymail Finder
+		add(fmt.Sprintf("Anymail Finder: searching %s @ %s…", req.FullName, req.Company))
+		email, conf, err := services.FindEmailAnymailByCompany(req.FullName, req.Company)
+		if err == nil && email != "" {
+			add(fmt.Sprintf("✓ Anymail found: %s (%.0f%% confidence)", email, conf*100))
+			c.JSON(http.StatusOK, models.FindEmailResponse{
+				Email:      email,
+				Confidence: conf,
+				Emails: []models.FindEmailResultItem{{
+					Email:      email,
+					Confidence: conf,
+					Source:     "Anymail Finder",
+				}},
+				Logs:   logs,
+				Source: "Anymail Finder",
+			})
+			return
+		}
+		add(fmt.Sprintf("Anymail: %v", err))
+
+		// Step 2: Hunter.io fallback
+		add(fmt.Sprintf("Hunter.io: searching %s @ %s…", req.FullName, req.Company))
+		email, conf, err = services.FindEmailHunter(req.FullName, req.Company)
+		if err == nil && email != "" {
+			add(fmt.Sprintf("✓ Hunter.io found: %s (%.0f%% confidence)", email, conf*100))
+			c.JSON(http.StatusOK, models.FindEmailResponse{
+				Email:      email,
+				Confidence: conf,
+				Emails: []models.FindEmailResultItem{{
+					Email:      email,
+					Confidence: conf,
+					Source:     "Hunter.io",
+				}},
+				Logs:   logs,
+				Source: "Hunter.io",
+			})
+			return
+		}
+		add(fmt.Sprintf("Hunter.io: %v", err))
+
+		add("No verified email found. Results are only shown when an API confirms the address.")
+		c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
 	}
-	add(fmt.Sprintf("Hunter.io: %v", err))
-
-	// ── All sources exhausted ─────────────────────────────────────────────────
-	add("No verified email found. Results are only shown when an API confirms the address.")
-	c.JSON(http.StatusOK, models.FindEmailResponse{Email: "", Confidence: 0, Logs: logs})
 }
 
 // amFirmsHandler lists asset manager firms from the Companies House SQLite database.

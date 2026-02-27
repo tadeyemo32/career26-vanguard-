@@ -104,14 +104,26 @@ type CompanyIntelResponse struct {
 }
 
 type FindEmailRequest struct {
-	FullName    string `json:"full_name"`
-	Company     string `json:"company"`
-	ResolveOnly bool   `json:"resolve_only"`
+	SearchType  string `json:"search_type"` // "person", "company", "decision_maker", "linkedin"
+	FullName    string `json:"full_name,omitempty"`
+	Company     string `json:"company,omitempty"`
+	Domain      string `json:"domain,omitempty"`
+	LinkedInURL string `json:"linkedin_url,omitempty"`
+	JobRoles    string `json:"job_roles,omitempty"` // comma separated list
+}
+
+type FindEmailResultItem struct {
+	Email      string  `json:"email"`
+	FullName   string  `json:"full_name,omitempty"`
+	JobTitle   string  `json:"job_title,omitempty"`
+	Confidence float64 `json:"confidence,omitempty"`
+	Source     string  `json:"source"`
 }
 
 type FindEmailResponse struct {
-	Email      string   `json:"email"`
-	Confidence float64  `json:"confidence"`
-	Source     string   `json:"source"`
-	Logs       []string `json:"logs"`
+	Email      string                `json:"email,omitempty"`      // legacy single result
+	Confidence float64               `json:"confidence,omitempty"` // legacy single result
+	Source     string                `json:"source"`               // legacy single result
+	Emails     []FindEmailResultItem `json:"emails,omitempty"`     // multiple results
+	Logs       []string              `json:"logs"`
 }

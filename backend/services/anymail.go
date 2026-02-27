@@ -220,3 +220,209 @@ func FindEmailAnymailByLinkedIn(linkedInURL string) (AnymailLinkedInResult, erro
 
 	return result, nil
 }
+
+// ── Company Search endpoint ───────────────────────────────────────────────────
+
+// AnymailCompanyResult holds the response for finding all emails at a company.
+type AnymailCompanyResult struct {
+	Emails []struct {
+		Email       string `json:"email"`
+		EmailStatus string `json:"email_status"`
+		ValidEmail  string `json:"valid_email"`
+		JobTitle    string `json:"person_job_title"`
+		FullName    string `json:"person_full_name"`
+	} `json:"emails"`
+}
+
+// FindEmailsAnymailByCompanyDomain calls POST /v5.1/find-email/company.
+// Takes a domain or company name. Returns up to 20 emails.
+func FindEmailsAnymailByCompanyDomain(domainOrCompany string) ([]AnymailLinkedInResult, error) {
+	apiKey := os.Getenv("ANYMAIL_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("ANYMAIL_API_KEY not set")
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"domain":       domainOrCompany,
+		"company_name": domainOrCompany,
+	})
+
+	req, err := http.NewRequest("POST", "https://api.anymailfinder.com/v5.1/find-email/company", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(resp.Body)
+	log.Printf("[Anymail/Company] HTTP %d body: %s", resp.StatusCode, string(raw))
+
+	if resp.StatusCode != http.StatusOK {
+		var errBody struct {
+			Error          string `json:"error"`
+			ErrorExplained string `json:"error_explained"`
+		}
+		_ = json.Unmarshal(raw, &errBody)
+		msg := errBody.Error
+		if errBody.ErrorExplained != "" {
+			msg += " — " + errBody.ErrorExplained
+		}
+
+		if msg == "" {
+			switch resp.StatusCode {
+			case http.StatusBadRequest:
+				msg = "Bad Request (check company/domain format)"
+			case http.StatusUnauthorized:
+				msg = "Unauthorized (check Anymail API key)"
+			case http.StatusPaymentRequired:
+				msg = "Payment Needed (out of credits)"
+			default:
+				msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
+			}
+		}
+		return nil, fmt.Errorf("Anymail Company API: %s", msg)
+	}
+
+	var data AnymailCompanyResult
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, fmt.Errorf("Anymail Company parse error: %w", err)
+	}
+
+	var validResults []AnymailLinkedInResult
+	for _, e := range data.Emails {
+		// Only take explicitly valid emails to protect sender reputation
+		if e.EmailStatus != "valid" && e.ValidEmail == "" {
+			continue
+		}
+		
+		email := e.ValidEmail
+		if email == "" {
+			email = e.Email
+		}
+		
+		if email == "" {
+			continue
+		}
+
+		validResults = append(validResults, AnymailLinkedInResult{
+			Email:      strings.ToLower(strings.TrimSpace(email)),
+			FullName:   e.FullName,
+			JobTitle:   e.JobTitle,
+			Company:    domainOrCompany, // From query
+			ValidEmail: email,
+			EmailStatus: e.EmailStatus,
+		})
+	}
+
+	if len(validResults) == 0 {
+		return nil, fmt.Errorf("no verified emails found for this company")
+	}
+
+	return validResults, nil
+}
+
+// ── Decision Maker Search endpoint ────────────────────────────────────────────
+
+// FindDecisionMakerAnymail calls POST /v5.1/find-email/decision-maker.
+func FindDecisionMakerAnymail(domainOrCompany string, roles string) ([]AnymailLinkedInResult, error) {
+	apiKey := os.Getenv("ANYMAIL_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("ANYMAIL_API_KEY not set")
+	}
+
+	// Anymail expects array of job titles/roles
+	roleTokens := strings.Split(roles, ",")
+	for i := range roleTokens {
+		roleTokens[i] = strings.TrimSpace(roleTokens[i])
+	}
+
+	body, _ := json.Marshal(map[string]any{
+		"domain":       domainOrCompany,
+		"company_name": domainOrCompany,
+		"job_titles":   roleTokens,
+	})
+
+	req, err := http.NewRequest("POST", "https://api.anymailfinder.com/v5.1/find-email/decision-maker", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(resp.Body)
+	log.Printf("[Anymail/DM] HTTP %d body: %s", resp.StatusCode, string(raw))
+
+	if resp.StatusCode != http.StatusOK {
+		var errBody struct {
+			Error          string `json:"error"`
+			ErrorExplained string `json:"error_explained"`
+		}
+		_ = json.Unmarshal(raw, &errBody)
+		msg := errBody.Error
+		if errBody.ErrorExplained != "" {
+			msg += " — " + errBody.ErrorExplained
+		}
+
+		if msg == "" {
+			switch resp.StatusCode {
+			case http.StatusBadRequest:
+				msg = "Bad Request (check company/domain or roles format)"
+			case http.StatusUnauthorized:
+				msg = "Unauthorized (check Anymail API key)"
+			case http.StatusPaymentRequired:
+				msg = "Payment Needed (out of credits)"
+			default:
+				msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
+			}
+		}
+		return nil, fmt.Errorf("Anymail Decision Maker API: %s", msg)
+	}
+
+	var data AnymailCompanyResult // The response structure is identical to company search (array of emails)
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, fmt.Errorf("Anymail DM parse error: %w", err)
+	}
+
+	var validResults []AnymailLinkedInResult
+	for _, e := range data.Emails {
+		if e.EmailStatus != "valid" && e.ValidEmail == "" {
+			continue
+		}
+		
+		email := e.ValidEmail
+		if email == "" {
+			email = e.Email
+		}
+		
+		if email == "" {
+			continue
+		}
+
+		validResults = append(validResults, AnymailLinkedInResult{
+			Email:      strings.ToLower(strings.TrimSpace(email)),
+			FullName:   e.FullName,
+			JobTitle:   e.JobTitle,
+			Company:    domainOrCompany,
+			ValidEmail: email,
+			EmailStatus: e.EmailStatus,
+		})
+	}
+
+	if len(validResults) == 0 {
+		return nil, fmt.Errorf("no verified decision makers found at this company for the requested roles")
+	}
+
+	return validResults, nil
+}
