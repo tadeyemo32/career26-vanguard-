@@ -471,14 +471,37 @@ func findEmailHandler(c *gin.Context) {
 		add(fmt.Sprintf("Input: Company Search for %q", targetDomain))
 		add("Anymail Finder: Searching for all emails at company…")
 
-		results, err := services.FindEmailsAnymailByCompanyDomain(targetDomain)
-		if err != nil {
-			add(fmt.Sprintf("Anymail: %v", err))
-			c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
-			return
+		rawResults, anyErr := services.FindEmailsAnymailByCompanyDomain(targetDomain)
+		var results []models.FindEmailResultItem
+		if anyErr == nil {
+			for _, r := range rawResults {
+				results = append(results, models.FindEmailResultItem{
+					Email:    r.Email,
+					FullName: r.FullName,
+					JobTitle: r.JobTitle,
+					Source:   "Anymail Finder",
+				})
+			}
 		}
 
-		add(fmt.Sprintf("✓ Found %d verified emails.", len(results)))
+		if anyErr != nil || len(results) == 0 {
+			if anyErr != nil {
+				add(fmt.Sprintf("Anymail: %v", anyErr))
+			} else {
+				add("Anymail Finder: no valid emails found.")
+			}
+			add("Hunter.io: Falling back to domain search…")
+			hunterResults, hunterErr := services.FindEmailsHunterByCompany(targetDomain)
+			if hunterErr != nil {
+				add(fmt.Sprintf("Hunter.io: %v", hunterErr))
+				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+				return
+			}
+			results = hunterResults
+			add(fmt.Sprintf("✓ Hunter.io found %d emails.", len(results)))
+		} else {
+			add(fmt.Sprintf("✓ Anymail found %d verified emails.", len(results)))
+		}
 
 		var responseEmails []models.FindEmailResultItem
 		for _, r := range results {
@@ -504,27 +527,40 @@ func findEmailHandler(c *gin.Context) {
 		add(fmt.Sprintf("Input: Decision Maker Search for %q roles at %q", req.JobRoles, targetDomain))
 		add("Anymail Finder: Searching for decision makers…")
 
-		results, err := services.FindDecisionMakerAnymail(targetDomain, req.JobRoles)
-		if err != nil {
-			add(fmt.Sprintf("Anymail: %v", err))
-			c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
-			return
+		rawResults, err := services.FindDecisionMakerAnymail(targetDomain, req.JobRoles)
+		var results []models.FindEmailResultItem
+		if err == nil {
+			for _, r := range rawResults {
+				results = append(results, models.FindEmailResultItem{
+					Email:    r.Email,
+					FullName: r.FullName,
+					JobTitle: r.JobTitle,
+					Source:   "Anymail Finder",
+				})
+			}
 		}
 
-		add(fmt.Sprintf("✓ Found %d verified decision makers.", len(results)))
-
-		var responseEmails []models.FindEmailResultItem
-		for _, r := range results {
-			responseEmails = append(responseEmails, models.FindEmailResultItem{
-				Email:    r.Email,
-				FullName: r.FullName,
-				JobTitle: r.JobTitle,
-				Source:   "Anymail Finder",
-			})
+		if err != nil || len(results) == 0 {
+			if err != nil {
+				add(fmt.Sprintf("Anymail: %v", err))
+			} else {
+				add("Anymail Finder: no decision makers found.")
+			}
+			add("Hunter.io: Falling back to department search…")
+			hunterResults, hunterErr := services.FindDecisionMakersHunter(targetDomain, req.JobRoles)
+			if hunterErr != nil {
+				add(fmt.Sprintf("Hunter.io: %v", hunterErr))
+				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+				return
+			}
+			results = hunterResults
+			add(fmt.Sprintf("✓ Hunter.io found %d decision makers.", len(results)))
+		} else {
+			add(fmt.Sprintf("✓ Anymail found %d verified decision makers.", len(results)))
 		}
 
 		c.JSON(http.StatusOK, models.FindEmailResponse{
-			Emails: responseEmails,
+			Emails: results,
 			Logs:   logs,
 			Source: "Anymail Finder",
 		})
@@ -539,34 +575,68 @@ func findEmailHandler(c *gin.Context) {
 		}
 		add(fmt.Sprintf("Input: LinkedIn URL %q", req.LinkedInURL))
 		add("Anymail Finder (LinkedIn URL): looking up profile…")
-		result, err := services.FindEmailAnymailByLinkedIn(req.LinkedInURL)
-		if err != nil {
-			add(fmt.Sprintf("Anymail LinkedIn: %v", err))
-			add("No verified email found via LinkedIn URL.")
-			c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
-			return
+		var result services.AnymailLinkedInResult
+		var isHunter bool
+		var hunterConfidence float64
+		var hunterSource string
+
+		rawResult, anymailErr := services.FindEmailAnymailByLinkedIn(req.LinkedInURL)
+		if anymailErr == nil && rawResult.Email != "" {
+			result = rawResult
 		}
+
+		if anymailErr != nil || result.Email == "" {
+			if anymailErr != nil {
+				add(fmt.Sprintf("Anymail LinkedIn: %v", anymailErr))
+			}
+			add("Anymail LinkedIn: no verified email found.")
+			add("Hunter.io: Falling back to LinkedIn reverse search…")
+
+			hunterResult, hunterErr := services.FindEmailHunterByLinkedIn(req.LinkedInURL)
+			if hunterErr != nil {
+				add(fmt.Sprintf("Hunter.io LinkedIn: %v", hunterErr))
+				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+				return
+			}
+			result.Email = hunterResult.Email
+			result.FullName = hunterResult.FullName
+			result.JobTitle = hunterResult.JobTitle
+			// Confidence/Source manually overridden below since they aren't in AnymailLinkedInResult
+			isHunter = true
+			hunterConfidence = hunterResult.Confidence
+			hunterSource = hunterResult.Source
+		}
+
 		if result.Email != "" {
 			add(fmt.Sprintf("✓ Found: %s", result.Email))
 			if result.FullName != "" {
 				add(fmt.Sprintf("  Name: %s — %s @ %s", result.FullName, result.JobTitle, result.Company))
 			}
+
+			conf := 1.0
+			src := "Anymail Finder (LinkedIn)"
+			if isHunter {
+				conf = hunterConfidence
+				src = hunterSource
+			}
+
 			c.JSON(http.StatusOK, models.FindEmailResponse{
 				Email:      result.Email, // legacy single return
-				Confidence: 1.0,
+				Confidence: conf,
 				Emails: []models.FindEmailResultItem{{
 					Email:      result.Email,
 					FullName:   result.FullName,
 					JobTitle:   result.JobTitle,
-					Confidence: 1.0,
-					Source:     "Anymail Finder",
+					Confidence: conf,
+					Source:     src,
 				}},
 				Logs:   logs,
-				Source: "Anymail Finder (LinkedIn)",
+				Source: src,
 			})
 			return
 		}
-		add("Anymail LinkedIn: no verified email found.")
+		// if result is still nil/empty this will process correctly
+		add("No verified email found.")
 		c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
 
 	default: // "person"
