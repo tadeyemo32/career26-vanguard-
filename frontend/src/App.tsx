@@ -1000,7 +1000,6 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
     { name: 'Find Email', icon: Mail, badge: null },
     { name: 'AI Search', icon: Search, badge: null },
     { name: 'Entity Intel', icon: Building, badge: 'testing' },
-    { name: 'Profile', icon: UserCircle, badge: null },
     { name: 'Settings', icon: Settings, badge: null },
     ...(user?.role === 'admin' ? [{ name: 'Admin', icon: ShieldCheck, badge: null }] : []),
   ];
@@ -1058,9 +1057,14 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
               </div>
             </div>
           )}
-          <div className="flex items-center justify-between">
-            <div className={`w-2 h-2 rounded-full ${health ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-red-400'}`}
-              title={health ? 'Backend online' : 'Backend offline'} />
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${health ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-red-400'}`}
+                title={health ? 'Backend online' : 'Backend offline'} />
+              <button onClick={() => setTab('Profile')} className="flex items-center gap-1.5 text-[10px] font-bold text-[#6b7494] hover:text-[#a0b4f0] transition-colors uppercase tracking-widest">
+                <UserCircle size={11} /> Profile
+              </button>
+            </div>
             <button onClick={onLogout} className="flex items-center gap-1.5 text-[10px] font-bold text-[#6b7494] hover:text-red-400 transition-colors uppercase tracking-widest">
               <LogOut size={11} /> Logout
             </button>
