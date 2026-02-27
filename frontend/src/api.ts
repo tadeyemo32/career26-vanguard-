@@ -385,5 +385,36 @@ export const api = {
         } catch (e: any) {
             return { success: false, error: e.message };
         }
-    }
+    },
+
+    async updateProfile(firstName: string, lastName: string, email: string): Promise<{ success: boolean; error?: string }> {
+        try {
+            const res = await fetch(`${API_BASE}/auth/profile`, {
+                method: "PATCH",
+                headers: getDefaultHeaders(),
+                body: JSON.stringify({ first_name: firstName, last_name: lastName, email }),
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return { success: false, error: data.error };
+            return { success: true };
+        } catch (e: any) {
+            return { success: false, error: e.message };
+        }
+    },
+
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+        try {
+            const res = await fetch(`${API_BASE}/auth/change-password`, {
+                method: "POST",
+                headers: getDefaultHeaders(),
+                body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return { success: false, error: data.error };
+            return { success: true };
+        } catch (e: any) {
+            return { success: false, error: e.message };
+        }
+    },
 };
+

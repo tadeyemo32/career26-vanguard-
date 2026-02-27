@@ -3,7 +3,7 @@ import {
   Activity, Search, Settings, Check, Download, Building,
   Terminal, Layers, Mail, ExternalLink, RefreshCw, Upload,
   X, Key, Cpu, FileText, Eye, EyeOff, Trash2, Lock, AlertTriangle,
-  ShieldCheck, LogOut, Users, Trophy, Loader2
+  ShieldCheck, LogOut, Users, Trophy, Loader2, UserCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, getAuthToken, setAuthToken } from './api';
@@ -383,7 +383,6 @@ function CompanyAutocomplete({ value, onChange, onSubmit }: {
 function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onGoToSettings: () => void }) {
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
-  const [resolve, setResolve] = useState(true);
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [email, setEmail] = useState('');
@@ -396,7 +395,7 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
   const find = async () => {
     if (!name || !company) return;
     setLoading(true); setLogs([]); setEmail(''); setConf(0); setErr(''); setSource('');
-    const res = await api.findEmail(name.trim(), company.trim(), resolve);
+    const res = await api.findEmail(name.trim(), company.trim());
     if (res.logs?.length) setLogs(res.logs);
     if (res.email) { setEmail(res.email); setConf(res.confidence); setSource(res.source || ''); }
     if (!res.email && !res.logs?.length) setErr(res.error || 'No result returned');
@@ -429,10 +428,6 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
           <label className="block text-xs font-medium text-[#6b7494] mb-2">Company or domain</label>
           <CompanyAutocomplete value={company} onChange={setCompany} onSubmit={find} />
         </div>
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" checked={resolve} onChange={e => setResolve(e.target.checked)} className="mt-0.5 accent-[#3b5cbd]" />
-          <span className="text-xs text-[#6b7494] leading-relaxed">Resolve company to domain via web search</span>
-        </label>
         <motion.button onClick={find} disabled={loading || !name || !company}
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
           className="w-full flex items-center justify-center gap-2 bg-[#3b5cbd] hover:bg-[#4d70d9] disabled:opacity-40 text-white text-sm font-medium rounded-lg py-2.5 transition-all border border-white/10">
@@ -486,6 +481,129 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Profile Tab ──────────────────────────────────────────────────────────────
+function ProfileTab({ user }: { user: { email: string; credits: number; role: string } | null }) {
+  const isDev = !!import.meta.env.VITE_DEV_TOKEN;
+
+  // Profile fields
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState(user?.email || '');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Password fields
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const saveProfile = async () => {
+    setProfileSaving(true); setProfileMsg(null);
+    if (isDev) { setProfileMsg({ ok: true, text: 'Profile updated (dev mode)' }); setProfileSaving(false); return; }
+    const { success, error } = await api.updateProfile(firstName, lastName, email);
+    setProfileMsg(success ? { ok: true, text: 'Profile updated!' } : { ok: false, text: error || 'Failed' });
+    setProfileSaving(false);
+  };
+
+  const savePw = async () => {
+    if (newPw !== confirmPw) { setPwMsg({ ok: false, text: 'Passwords do not match' }); return; }
+    if (newPw.length < 8) { setPwMsg({ ok: false, text: 'Password must be at least 8 characters' }); return; }
+    setPwSaving(true); setPwMsg(null);
+    if (isDev) { setPwMsg({ ok: true, text: 'Password changed (dev mode)' }); setPwSaving(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); return; }
+    const { success, error } = await api.changePassword(currentPw, newPw);
+    if (success) { setPwMsg({ ok: true, text: 'Password changed!' }); setCurrentPw(''); setNewPw(''); setConfirmPw(''); }
+    else setPwMsg({ ok: false, text: error || 'Failed' });
+    setPwSaving(false);
+  };
+
+  const inputCls = "w-full bg-[#09090f] border border-[#262d42] rounded-lg px-4 py-2.5 text-sm text-white placeholder-[#363d52] focus:outline-none focus:border-[#3b5cbd] focus:ring-1 focus:ring-[#3b5cbd]/30 transition-all";
+
+  return (
+    <div className="max-w-xl space-y-6">
+      {/* Account Info card */}
+      <div className="bg-[#0f1018] border border-[#1e2235] rounded-xl p-6 space-y-5">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e2d56] to-[#101520] border border-[#2a3a60] text-[#a0b4f0] text-xl font-bold flex items-center justify-center">
+            {(user?.email || 'D').charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div className="text-white font-semibold text-sm">{user?.email}</div>
+            <div className="text-[11px] text-[#6b7494] mt-0.5">
+              <span className="uppercase tracking-wide font-semibold text-[#728bee]">{user?.role}</span>
+              <span className="mx-2 text-[#363d52]">·</span>
+              {user?.credits?.toLocaleString()} credits
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-[#6b7494] mb-2">First name</label>
+            <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[#6b7494] mb-2">Last name</label>
+            <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" className={inputCls} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[#6b7494] mb-2">Email address</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="you@example.com" className={inputCls} />
+        </div>
+
+        {profileMsg && (
+          <div className={`text-xs px-3 py-2 rounded-lg ${profileMsg.ok ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20' : 'bg-red-400/10 text-red-400 border border-red-400/20'}`}>
+            {profileMsg.text}
+          </div>
+        )}
+        <motion.button onClick={saveProfile} disabled={profileSaving}
+          whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+          className="w-full flex items-center justify-center gap-2 bg-[#3b5cbd] hover:bg-[#4d70d9] disabled:opacity-40 text-white text-sm font-medium rounded-lg py-2.5 border border-white/10 transition-all">
+          {profileSaving ? <><RefreshCw size={14} className="spin" />Saving…</> : <><Check size={14} />Save profile</>}
+        </motion.button>
+      </div>
+
+      {/* Change password card */}
+      <div className="bg-[#0f1018] border border-[#1e2235] rounded-xl p-6 space-y-4">
+        <div className="text-sm font-semibold text-white mb-1">Change password</div>
+        <div className="relative">
+          <label className="block text-xs font-medium text-[#6b7494] mb-2">Current password</label>
+          <input value={currentPw} onChange={e => setCurrentPw(e.target.value)} type={showCurrent ? 'text' : 'password'} placeholder="Current password" className={inputCls} />
+          <button onClick={() => setShowCurrent(p => !p)} className="absolute right-3 top-[34px] text-[#6b7494] hover:text-white transition-colors">
+            {showCurrent ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
+        <div className="relative">
+          <label className="block text-xs font-medium text-[#6b7494] mb-2">New password</label>
+          <input value={newPw} onChange={e => setNewPw(e.target.value)} type={showNew ? 'text' : 'password'} placeholder="Min. 8 characters" className={inputCls} />
+          <button onClick={() => setShowNew(p => !p)} className="absolute right-3 top-[34px] text-[#6b7494] hover:text-white transition-colors">
+            {showNew ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[#6b7494] mb-2">Confirm new password</label>
+          <input value={confirmPw} onChange={e => setConfirmPw(e.target.value)} type="password" placeholder="Repeat new password" className={inputCls} />
+          {confirmPw && newPw !== confirmPw && <p className="text-xs text-red-400 mt-1">Passwords don't match</p>}
+        </div>
+        {pwMsg && (
+          <div className={`text-xs px-3 py-2 rounded-lg ${pwMsg.ok ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20' : 'bg-red-400/10 text-red-400 border border-red-400/20'}`}>
+            {pwMsg.text}
+          </div>
+        )}
+        <motion.button onClick={savePw} disabled={pwSaving || !currentPw || !newPw || !confirmPw}
+          whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+          className="w-full flex items-center justify-center gap-2 bg-[#1e2235] hover:bg-[#262d42] disabled:opacity-40 text-white text-sm font-medium rounded-lg py-2.5 border border-[#262d42] transition-all">
+          {pwSaving ? <><RefreshCw size={14} className="spin" />Changing…</> : <>Change password</>}
+        </motion.button>
+      </div>
     </div>
   );
 }
@@ -917,6 +1035,7 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
     { name: 'Find Email', icon: Mail, badge: null },
     { name: 'AI Search', icon: Search, badge: null },
     { name: 'Entity Intel', icon: Building, badge: 'testing' },
+    { name: 'Profile', icon: UserCircle, badge: null },
     { name: 'Settings', icon: Settings, badge: null },
     ...(user?.role === 'admin' ? [{ name: 'Admin', icon: ShieldCheck, badge: null }] : []),
   ];
@@ -1131,6 +1250,13 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
                   </motion.div>
                 )}
               </>)}
+            </>)}
+
+            {/* ── PROFILE ─────────────────────────────────────────── */}
+            {tab === 'Profile' && (<>
+              <h1 className="text-2xl font-bold text-white mb-2">Profile</h1>
+              <p className="text-[#6b7494] text-[13px] mb-8 max-w-md leading-relaxed">Update your name, email address, and password.</p>
+              <ProfileTab user={user} />
             </>)}
 
             {/* ── SETTINGS ───────────────────────────────────────── */}

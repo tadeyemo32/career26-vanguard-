@@ -428,8 +428,8 @@ func resolveCompanyDomain(companyInput string) (string, bool) {
 	return "", false
 }
 
-// findEmailHandler: Anymail → Hunter.io → give up.
-// NO LLM guessing. Only real API-verified emails are returned.
+// findEmailHandler: Anymail → Hunter.io using raw company input — no domain resolution.
+// The user's input is passed as-is to both APIs. They can type a company name OR a domain.
 func findEmailHandler(c *gin.Context) {
 	var req models.FindEmailRequest
 	if err := c.BindJSON(&req); err != nil {
@@ -450,9 +450,7 @@ func findEmailHandler(c *gin.Context) {
 
 	add(fmt.Sprintf("Input: %q at %q", req.FullName, req.Company))
 
-	// ── Step 1: Anymail Finder (Direct Input) ─────────────────────────────────
-	// Anymail often expects the raw company NAME (e.g. "Atomico"), and does its own internal resolving.
-	// We call it immediately with exactly what the user provided, saving SERP latency if it succeeds.
+	// ── Step 1: Anymail Finder (raw company input) ─────────────────────────────
 	add(fmt.Sprintf("Anymail Finder: searching %s @ %s…", req.FullName, req.Company))
 	email, conf, err := services.FindEmailAnymailByCompany(req.FullName, req.Company)
 	if err == nil && email != "" {
@@ -463,86 +461,9 @@ func findEmailHandler(c *gin.Context) {
 	}
 	add(fmt.Sprintf("Anymail: %v", err))
 
-	// ── Step 2: Resolve company → domain (for Hunter.io & fallbacks) ──────────
-	resolvedDomain := req.Company
-
-	// 2a. Try curated map first (fast, authoritative, no API call needed)
-	if d, ok := resolveCompanyDomain(req.Company); ok {
-		resolvedDomain = d
-		add(fmt.Sprintf("Resolved via directory: %s → %s", req.Company, resolvedDomain))
-	} else {
-		// 2b. SERP fallback — score candidates by name-token match and prefer .com
-		add("Not in directory — resolving via web search…")
-		companyLower := strings.ToLower(req.Company)
-		companyTokens := strings.Fields(companyLower)
-
-		serpResults, serpErr := services.SerpGoogle(
-			fmt.Sprintf(`"%s" official website`, req.Company), 5, // Reduced from 8 to 5 to save time
-		)
-		if serpErr == nil {
-			type scored struct {
-				domain string
-				score  int
-			}
-			var candidates []scored
-
-			for _, r := range serpResults {
-				link := r.Link
-				link = strings.TrimPrefix(link, "https://")
-				link = strings.TrimPrefix(link, "http://")
-				link = strings.Split(link, "/")[0]
-				linkLower := strings.ToLower(link)
-
-				// Skip aggregators / social sites //
-				bad := false
-				for _, skip := range []string{"linkedin", "google", "facebook", "twitter", "wikipedia", "bloomberg", "crunchbase", "glassdoor", "indeed", "yelp", "bing"} {
-					if strings.Contains(linkLower, skip) {
-						bad = true
-						break
-					}
-				}
-				if bad || !strings.Contains(link, ".") {
-					continue
-				}
-
-				score := 0
-				// Prefer .com TLD
-				if strings.HasSuffix(linkLower, ".com") {
-					score += 10
-				}
-				// Reward domains that contain company name tokens
-				for _, tok := range companyTokens {
-					if len(tok) > 2 && strings.Contains(linkLower, tok) {
-						score += 5
-					}
-				}
-				candidates = append(candidates, scored{domain: link, score: score})
-			}
-
-			// Pick highest scoring
-			bestScore := -1
-			bestDomain := ""
-			for _, sc := range candidates {
-				if sc.score > bestScore {
-					bestScore = sc.score
-					bestDomain = sc.domain
-				}
-			}
-			if bestDomain != "" {
-				resolvedDomain = bestDomain
-			}
-		}
-
-		if resolvedDomain != req.Company {
-			add(fmt.Sprintf("Resolved: %s → %s", req.Company, resolvedDomain))
-		} else {
-			add("Could not resolve domain — using company name directly.")
-		}
-	}
-
-	// ── Step 3: Hunter.io ─────────────────────────────────────────────────────
-	add(fmt.Sprintf("Hunter.io: searching %s @ %s…", req.FullName, resolvedDomain))
-	email, conf, err = services.FindEmailHunter(req.FullName, resolvedDomain)
+	// ── Step 2: Hunter.io (raw company input) ────────────────────────────────
+	add(fmt.Sprintf("Hunter.io: searching %s @ %s…", req.FullName, req.Company))
+	email, conf, err = services.FindEmailHunter(req.FullName, req.Company)
 	if err == nil && email != "" {
 		add(fmt.Sprintf("✓ Hunter.io found: %s (%.0f%% confidence)", email, conf*100))
 		add(fmt.Sprintf("→ Email: %s (confidence %.0f%%)", email, conf*100))

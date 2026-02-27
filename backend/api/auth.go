@@ -190,3 +190,107 @@ func loginHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
+
+func updateProfileHandler(c *gin.Context) {
+	// Dev bypass: no DB user to update
+	if _, isBypass := c.Get("devBypass"); isBypass {
+		c.JSON(http.StatusOK, gin.H{"message": "Profile updated (dev bypass)"})
+		return
+	}
+
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uint)
+
+	var req struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Email     string `json:"email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	var user models.User
+	if err := services.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Check email uniqueness if changing it
+	if req.Email != "" && req.Email != user.Email {
+		req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+		var existing models.User
+		if services.DB.Where("email = ? AND id != ?", req.Email, userID).First(&existing).Error == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "Email already in use"})
+			return
+		}
+		user.Email = req.Email
+	}
+	if req.FirstName != "" {
+		user.FirstName = strings.TrimSpace(req.FirstName)
+	}
+	if req.LastName != "" {
+		user.LastName = strings.TrimSpace(req.LastName)
+	}
+
+	if err := services.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Profile updated",
+		"first_name": user.FirstName,
+		"last_name":  user.LastName,
+		"email":      user.Email,
+	})
+}
+
+func changePasswordHandler(c *gin.Context) {
+	// Dev bypass: no DB user
+	if _, isBypass := c.Get("devBypass"); isBypass {
+		c.JSON(http.StatusOK, gin.H{"message": "Password changed (dev bypass)"})
+		return
+	}
+
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uint)
+
+	var req struct {
+		CurrentPassword string `json:"current_password" binding:"required"`
+		NewPassword     string `json:"new_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password are required"})
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "New password must be at least 8 characters"})
+		return
+	}
+
+	var user models.User
+	if err := services.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	if !services.CheckPasswordHash(req.CurrentPassword, user.PasswordHash) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+		return
+	}
+
+	newHash, err := services.HashPassword(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	if err := services.DB.Model(&user).Update("password_hash", newHash).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+}

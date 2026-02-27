@@ -27,6 +27,8 @@ func SetupRoutes(r *gin.Engine) {
 	apiGroup.Use(AuthMiddleware())
 	{
 		apiGroup.GET("/auth/me", getUserMeHandler)
+		apiGroup.PATCH("/auth/profile", updateProfileHandler)
+		apiGroup.POST("/auth/change-password", changePasswordHandler)
 
 		// Key status (boolean only) - accessible to all authenticated users for KeyGate
 		apiGroup.GET("/key-status", keyStatusHandler)
