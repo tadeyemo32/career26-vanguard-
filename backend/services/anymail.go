@@ -225,13 +225,9 @@ func FindEmailAnymailByLinkedIn(linkedInURL string) (AnymailLinkedInResult, erro
 
 // AnymailCompanyResult holds the response for finding all emails at a company.
 type AnymailCompanyResult struct {
-	Emails []struct {
-		Email       string `json:"email"`
-		EmailStatus string `json:"email_status"`
-		ValidEmail  string `json:"valid_email"`
-		JobTitle    string `json:"person_job_title"`
-		FullName    string `json:"person_full_name"`
-	} `json:"emails"`
+	EmailStatus string   `json:"email_status"`
+	ValidEmails []string `json:"valid_emails"`
+	Emails      []string `json:"emails"`
 }
 
 // FindEmailsAnymailByCompanyDomain calls POST /v5.1/find-email/company.
@@ -295,28 +291,24 @@ func FindEmailsAnymailByCompanyDomain(domainOrCompany string) ([]AnymailLinkedIn
 	}
 
 	var validResults []AnymailLinkedInResult
-	for _, e := range data.Emails {
-		// Only take explicitly valid emails to protect sender reputation
-		if e.EmailStatus != "valid" && e.ValidEmail == "" {
-			continue
-		}
-		
-		email := e.ValidEmail
-		if email == "" {
-			email = e.Email
-		}
-		
+
+	// Default to emails, but prefer valid_emails if present
+	emailList := data.ValidEmails
+	if len(emailList) == 0 {
+		emailList = data.Emails
+	}
+
+	for _, email := range emailList {
+		email = strings.ToLower(strings.TrimSpace(email))
 		if email == "" {
 			continue
 		}
 
 		validResults = append(validResults, AnymailLinkedInResult{
-			Email:      strings.ToLower(strings.TrimSpace(email)),
-			FullName:   e.FullName,
-			JobTitle:   e.JobTitle,
-			Company:    domainOrCompany, // From query
-			ValidEmail: email,
-			EmailStatus: e.EmailStatus,
+			Email:       email,
+			Company:     domainOrCompany,
+			ValidEmail:  email,
+			EmailStatus: data.EmailStatus,
 		})
 	}
 
@@ -343,9 +335,9 @@ func FindDecisionMakerAnymail(domainOrCompany string, roles string) ([]AnymailLi
 	}
 
 	body, _ := json.Marshal(map[string]any{
-		"domain":       domainOrCompany,
-		"company_name": domainOrCompany,
-		"job_titles":   roleTokens,
+		"domain":                  domainOrCompany,
+		"company_name":            domainOrCompany,
+		"decision_maker_category": roleTokens,
 	})
 
 	req, err := http.NewRequest("POST", "https://api.anymailfinder.com/v5.1/find-email/decision-maker", bytes.NewBuffer(body))
@@ -390,39 +382,26 @@ func FindDecisionMakerAnymail(domainOrCompany string, roles string) ([]AnymailLi
 		return nil, fmt.Errorf("Anymail Decision Maker API: %s", msg)
 	}
 
-	var data AnymailCompanyResult // The response structure is identical to company search (array of emails)
-	if err := json.Unmarshal(raw, &data); err != nil {
-		return nil, fmt.Errorf("Anymail DM parse error: %w", err)
+	var result AnymailLinkedInResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, fmt.Errorf("Anymail Decision Maker parse error: %w", err)
 	}
 
-	var validResults []AnymailLinkedInResult
-	for _, e := range data.Emails {
-		if e.EmailStatus != "valid" && e.ValidEmail == "" {
-			continue
-		}
-		
-		email := e.ValidEmail
-		if email == "" {
-			email = e.Email
-		}
-		
-		if email == "" {
-			continue
-		}
-
-		validResults = append(validResults, AnymailLinkedInResult{
-			Email:      strings.ToLower(strings.TrimSpace(email)),
-			FullName:   e.FullName,
-			JobTitle:   e.JobTitle,
-			Company:    domainOrCompany,
-			ValidEmail: email,
-			EmailStatus: e.EmailStatus,
-		})
+	if result.EmailStatus == "not_found" || result.EmailStatus == "blacklisted" || result.EmailStatus == "risky" {
+		return nil, fmt.Errorf("no verified decision makers found")
 	}
 
-	if len(validResults) == 0 {
-		return nil, fmt.Errorf("no verified decision makers found at this company for the requested roles")
+	email := result.ValidEmail
+	if email == "" && result.EmailStatus == "valid" {
+		email = result.Email
 	}
 
-	return validResults, nil
+	if email == "" {
+		return nil, fmt.Errorf("no verified decision makers found")
+	}
+
+	result.Email = strings.ToLower(strings.TrimSpace(email))
+	result.Company = domainOrCompany
+
+	return []AnymailLinkedInResult{result}, nil
 }

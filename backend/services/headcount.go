@@ -1,9 +1,8 @@
 package services
 
 // HeadcountRules encodes the outreach strategy based on firm size.
-// Only firms between 25–500 employees are targeted.
-//
-// < 50 employees   → CEO, Partner, CIO
+// Following the Career26 Rule:
+// < 50 employees   → CEO, Founder, Partner, CIO
 // 50–200 employees → HR Director
 // 200–500          → Early Careers Head, HR Director
 // > 500            → out of scope
@@ -14,7 +13,7 @@ type HeadcountBand struct {
 }
 
 // GetTargetRolesByHeadcount returns the appropriate outreach targets for a given headcount.
-// Returns nil if outside the 25–500 range.
+// Returns nil if outside the 1–500 range.
 func GetTargetRolesByHeadcount(headcount int) *HeadcountBand {
 	switch {
 	case headcount < 50:

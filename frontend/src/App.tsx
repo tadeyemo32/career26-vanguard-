@@ -15,14 +15,6 @@ import './index.css';
 // ── Auth types ────────────────────────────────────────────────────────────────
 interface User { email: string; credits: number; role: string; }
 
-const JOB_TITLES = [
-  "Director", "Partner", "VP", "Managing Director", "Principal", "Associate",
-  "Head of Business Development", "Head of Investor Relations", "CFO", "CEO",
-  "Analyst", "Graduate", "Intern", "Early Careers", "Talent Acquisition", "Recruiter",
-  "HR Director", "Head of People", "Chief People Officer", "General Counsel",
-  "Legal Counsel", "Head of Operations", "COO", "Head of Strategy",
-  "Business Development Manager", "Account Manager",
-];
 
 // File-accept string for FileUploadZone
 const ACCEPTED = '.csv,.txt,.tsv,.xlsx,.xls,.ods,.pdf,.numbers';
@@ -134,7 +126,7 @@ function ResultsTable({ rows, onExport }: { rows: PersonRow[]; onExport?: () => 
                   {r.email ? (
                     <div className="flex items-center gap-2">
                       <div className="w-14 h-1 bg-[#1e2235] rounded-full overflow-hidden">
-                        <div className="h-full bg-[#3b5cbd] rounded-full transition-all duration-500" style={{ width: `${Math.round(r.confidence * 100)}%` }} />
+                        <div className="h-full bg-[#3b5cbd] rounded-full transition-all duration-500" style={{ width: `${Math.round(r.confidence * 100)}% ` }} />
                       </div>
                       <span className="text-[11px] text-[#6b7494]">{Math.round(r.confidence * 100)}%</span>
                     </div>
@@ -187,8 +179,8 @@ function FileUploadZone({ onText }: { onText: (t: string) => void }) {
         onDragLeave={() => setDrag(false)}
         onDrop={e => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files.length) process(e.dataTransfer.files); }}
         onClick={() => ref.current?.click()}
-        className={`flex items-center justify-center gap-3 border border-dashed rounded-xl px-6 py-8 cursor-pointer transition-all text-sm select-none
-          ${drag ? 'border-[#3b5cbd] bg-[#3b5cbd]/8 text-white' : 'border-[#262d42] bg-[#0f1018] text-[#6b7494] hover:border-[#3b5cbd]/60 hover:text-[#d8dce8]'}`}
+        className={`flex items - center justify - center gap - 3 border border - dashed rounded - xl px - 6 py - 8 cursor - pointer transition - all text - sm select - none
+          ${drag ? 'border-[#3b5cbd] bg-[#3b5cbd]/8 text-white' : 'border-[#262d42] bg-[#0f1018] text-[#6b7494] hover:border-[#3b5cbd]/60 hover:text-[#d8dce8]'} `}
       >
         <input ref={ref} type="file" multiple accept={ACCEPTED} className="hidden"
           onChange={e => e.target.files && process(e.target.files)} />
@@ -296,8 +288,8 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
         <div className="flex bg-[#09090f] border border-[#1e2235] p-1 rounded-lg">
           {(['person', 'company', 'decision_maker', 'linkedin'] as SearchType[]).map(t => (
             <button key={t} onClick={() => setMode(t)}
-              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${mode === t ? 'bg-[#1e2235] text-white shadow-sm' : 'text-[#6b7494] hover:text-[#d8dce8]'
-                }`}>
+              className={`flex - 1 py - 1.5 text - xs font - medium rounded - md transition - colors ${mode === t ? 'bg-[#1e2235] text-white shadow-sm' : 'text-[#6b7494] hover:text-[#d8dce8]'
+                } `}>
               {t === 'person' ? 'Person' : t === 'company' ? 'Company' : t === 'decision_maker' ? 'Role' : 'LinkedIn'}
             </button>
           ))}
@@ -409,7 +401,7 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
                               {e.full_name && <span className="text-[#8090a8]">{e.full_name}</span>}
                               {e.job_title && <><span className="text-[#363d52]">•</span> <span className="text-[#8090a8] truncate max-w-[150px]">{e.job_title}</span></>}
                             </div>
-                            <div className={`text-[10px] mt-1 ${c.color}`}>{c.pct}% — {c.label} via {e.source || source}</div>
+                            <div className={`text - [10px] mt - 1 ${c.color} `}>{c.pct}% — {c.label} via {e.source || source}</div>
                           </div>
                         </div>
                       </div>
@@ -514,7 +506,7 @@ function ProfileTab({ user }: { user: { email: string; credits: number; role: st
         </div>
 
         {profileMsg && (
-          <div className={`text-xs px-3 py-2 rounded-lg ${profileMsg.ok ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20' : 'bg-red-400/10 text-red-400 border border-red-400/20'}`}>
+          <div className={`text - xs px - 3 py - 2 rounded - lg ${profileMsg.ok ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20' : 'bg-red-400/10 text-red-400 border border-red-400/20'} `}>
             {profileMsg.text}
           </div>
         )}
@@ -548,7 +540,7 @@ function ProfileTab({ user }: { user: { email: string; credits: number; role: st
           {confirmPw && newPw !== confirmPw && <p className="text-xs text-red-400 mt-1">Passwords don't match</p>}
         </div>
         {pwMsg && (
-          <div className={`text-xs px-3 py-2 rounded-lg ${pwMsg.ok ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20' : 'bg-red-400/10 text-red-400 border border-red-400/20'}`}>
+          <div className={`text - xs px - 3 py - 2 rounded - lg ${pwMsg.ok ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20' : 'bg-red-400/10 text-red-400 border border-red-400/20'} `}>
             {pwMsg.text}
           </div>
         )}
@@ -699,8 +691,8 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-medium text-[#8090a8]">{label}</span>
                   <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${info.connected ? 'bg-emerald-400/10 text-emerald-400' : 'bg-[#f87171]/10 text-[#f87171]'
-                      }`}>
+                    <span className={`inline - flex items - center gap - 1 text - [10px] font - semibold px - 2 py - 0.5 rounded - full ${info.connected ? 'bg-emerald-400/10 text-emerald-400' : 'bg-[#f87171]/10 text-[#f87171]'
+                      } `}>
                       {info.connected ? <><Check size={9} />Connected</> : '○ Not set'}
                     </span>
                     {!isEditing && (
@@ -783,19 +775,19 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
                 {/* Row header — click to select provider */}
                 <button
                   onClick={() => { setProvider(p.id); setModel(p.models[0].value); }}
-                  className={`w-full flex items-center gap-4 px-6 py-4 text-left transition-colors ${isActive ? 'bg-[#111825]' : 'hover:bg-[#0c0e14]'
-                    }`}
+                  className={`w - full flex items - center gap - 4 px - 6 py - 4 text - left transition - colors ${isActive ? 'bg-[#111825]' : 'hover:bg-[#0c0e14]'
+                    } `}
                 >
                   {/* Wordmark abbrev */}
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-black tracking-widest transition-all ${isActive
+                  <div className={`w - 10 h - 10 rounded - lg flex items - center justify - center flex - shrink - 0 text - [10px] font - black tracking - widest transition - all ${isActive
                     ? 'bg-[#3b5cbd] text-white'
                     : 'bg-[#0d0f16] border border-[#1e2235] text-[#363d52]'
-                    }`}>
+                    } `}>
                     {p.abbr}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className={`text-[13px] font-semibold transition-colors ${isActive ? 'text-white' : 'text-[#6b7494]'}`}>
+                    <div className={`text - [13px] font - semibold transition - colors ${isActive ? 'text-white' : 'text-[#6b7494]'} `}>
                       {p.name}
                     </div>
                     {isActive && (
@@ -809,8 +801,8 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
                   </div>
 
                   {/* Selection indicator */}
-                  <div className={`w-[18px] h-[18px] rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${isActive ? 'border-[#3b5cbd] bg-[#3b5cbd]/20' : 'border-[#262d42]'
-                    }`}>
+                  <div className={`w - [18px] h - [18px] rounded - full border flex items - center justify - center flex - shrink - 0 transition - all ${isActive ? 'border-[#3b5cbd] bg-[#3b5cbd]/20' : 'border-[#262d42]'
+                    } `}>
                     {isActive && <div className="w-2 h-2 rounded-full bg-[#728bee]" />}
                   </div>
                 </button>
@@ -822,25 +814,25 @@ function SettingsTab({ onKeysChange }: { onKeysChange: (status: KeyStatus) => vo
                       <button
                         key={m.value}
                         onClick={() => setModel(m.value)}
-                        className={`w-full flex items-center gap-5 px-6 py-3.5 text-left transition-colors border-b border-[#0f1118] last:border-0 ${model === m.value ? 'bg-[#3b5cbd]/8' : 'hover:bg-[#0d1018]'
-                          }`}
+                        className={`w - full flex items - center gap - 5 px - 6 py - 3.5 text - left transition - colors border - b border - [#0f1118] last: border - 0 ${model === m.value ? 'bg-[#3b5cbd]/8' : 'hover:bg-[#0d1018]'
+                          } `}
                       >
                         {/* Rank dot */}
-                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors ${model === m.value ? 'bg-[#728bee]' : 'bg-[#1e2235]'
-                          }`} />
+                        <div className={`w - 1.5 h - 1.5 rounded - full flex - shrink - 0 transition - colors ${model === m.value ? 'bg-[#728bee]' : 'bg-[#1e2235]'
+                          } `} />
 
                         {/* Model name + sub */}
                         <div className="flex-1 min-w-0">
-                          <span className={`text-[12px] font-medium transition-colors ${model === m.value ? 'text-white' : 'text-[#6b7494]'
-                            }`}>{m.label}</span>
+                          <span className={`text - [12px] font - medium transition - colors ${model === m.value ? 'text-white' : 'text-[#6b7494]'
+                            } `}>{m.label}</span>
                           <span className="text-[11px] text-[#363d52] ml-2">{m.sub}</span>
                         </div>
 
                         {/* Tier label — plain text, no pill */}
-                        <span className={`text-[10px] font-semibold uppercase tracking-wider flex-shrink-0 ${m.note === 'Best' ? 'text-[#728bee]' :
+                        <span className={`text - [10px] font - semibold uppercase tracking - wider flex - shrink - 0 ${m.note === 'Best' ? 'text-[#728bee]' :
                           m.note === 'Fastest' ? 'text-[#52c07b]' :
                             'text-[#8e7a4a]'
-                          }`}>{m.note}</span>
+                          } `}>{m.note}</span>
 
                         {/* Check */}
                         {model === m.value && <Check size={12} className="text-[#3b5cbd] flex-shrink-0" />}
@@ -920,7 +912,6 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
   const [fileText, setFileText] = useState('');
   const [extractedCos, setExtractedCos] = useState<string[]>([]);
   const [extracting, setExtracting] = useState(false);
-  const [titles, setTitles] = useState<Record<string, boolean>>({ Director: true, Partner: true });
   const [running, setRunning] = useState(false);
   const [pResults, setPResults] = useState<PersonRow[]>([]);
   const [pErr, setPErr] = useState('');
@@ -937,8 +928,6 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
   const [intelData, setIntelData] = useState<any>(null);
   const [intelErr, setIntelErr] = useState('');
 
-  const toggleTitle = (t: string) => setTitles(p => ({ ...p, [t]: !p[t] }));
-
   const extract = async () => {
     if (!fileText.trim()) { setPErr('Upload at least one file first.'); return; }
     setExtracting(true); setPErr(''); setPResults([]);
@@ -950,10 +939,9 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
   const runPipeline = async () => {
     if (!extractedCos.length) { setPErr('Extract companies first.'); return; }
     setRunning(true); setPErr(''); setPResults([]);
-    const selected = Object.keys(titles).filter(k => titles[k]);
     const { results, error } = await api.outreachRun({
       count: extractedCos.length, max_per_company: 5, fetch_metadata: true, min_score: 0.8,
-      companies: extractedCos, job_titles: selected.length ? selected : ['Director'],
+      companies: extractedCos, job_titles: [],
     });
     if (error) setPErr(error); else setPResults(results);
     setRunning(false);
@@ -1106,16 +1094,16 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
                       <div className="w-7 h-7 rounded-full bg-[#13151f] border border-[#262d42] text-[#6b7494] text-xs font-semibold flex items-center justify-center">2</div>
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-sm font-semibold text-white mb-1">Select titles &amp; find people</h2>
-                      <p className="text-[12px] text-[#6b7494] mb-5">Tick any roles to target. Each company is searched for people matching at least one.</p>
-                      <div className="grid grid-cols-4 gap-x-6 gap-y-3 mb-6">
-                        {JOB_TITLES.map(t => (
-                          <label key={t} className="flex items-center gap-2 cursor-pointer group">
-                            <input type="checkbox" checked={!!titles[t]} onChange={() => toggleTitle(t)} className="w-3.5 h-3.5 accent-[#3b5cbd] cursor-pointer" />
-                            <span className="text-[12px] text-[#8090a8] group-hover:text-[#d8dce8] transition-colors">{t}</span>
-                          </label>
-                        ))}
-                      </div>
+                      <h2 className="text-sm font-semibold text-white mb-1">Find Targets (Career26 Rule)</h2>
+                      <p className="text-[12px] text-[#6b7494] mb-3">
+                        Vanguard automatically identifies the right contacts based on company size:
+                      </p>
+                      <ul className="text-[12px] text-[#8090a8] space-y-1.5 mb-6 bg-[#0f1018] p-3 rounded-lg border border-[#1e2235]">
+                        <li className="flex gap-2"><span className="text-emerald-400">{'< 50:'}</span> CEO, Founder, Partner, CIO</li>
+                        <li className="flex gap-2"><span className="text-emerald-400">{'50 - 200:'}</span> HR Director</li>
+                        <li className="flex gap-2"><span className="text-emerald-400">{'200 - 500:'}</span> Early Careers Head, HR Director</li>
+                        <li className="flex gap-2 text-[#4b5563]"><span className="text-[#4b5563]">{'> 500:'}</span> Skipped (Out of scope)</li>
+                      </ul>
                       <motion.button onClick={runPipeline} disabled={running || !extractedCos.length}
                         whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                         className="flex items-center gap-2 bg-[#3b5cbd] hover:bg-[#4d70d9] disabled:opacity-40 text-white text-[13px] font-medium px-5 py-2 rounded-lg border border-white/10 transition-all">

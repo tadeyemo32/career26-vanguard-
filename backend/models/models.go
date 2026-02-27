@@ -126,4 +126,5 @@ type FindEmailResponse struct {
 	Source     string                `json:"source"`               // legacy single result
 	Emails     []FindEmailResultItem `json:"emails,omitempty"`     // multiple results
 	Logs       []string              `json:"logs"`
+	Error      string                `json:"error,omitempty"`
 }

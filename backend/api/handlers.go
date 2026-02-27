@@ -494,7 +494,7 @@ func findEmailHandler(c *gin.Context) {
 			hunterResults, hunterErr := services.FindEmailsHunterByCompany(targetDomain)
 			if hunterErr != nil {
 				add(fmt.Sprintf("Hunter.io: %v", hunterErr))
-				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs, Error: hunterErr.Error()})
 				return
 			}
 			results = hunterResults
@@ -550,7 +550,7 @@ func findEmailHandler(c *gin.Context) {
 			hunterResults, hunterErr := services.FindDecisionMakersHunter(targetDomain, req.JobRoles)
 			if hunterErr != nil {
 				add(fmt.Sprintf("Hunter.io: %v", hunterErr))
-				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs, Error: hunterErr.Error()})
 				return
 			}
 			results = hunterResults
@@ -595,7 +595,7 @@ func findEmailHandler(c *gin.Context) {
 			hunterResult, hunterErr := services.FindEmailHunterByLinkedIn(req.LinkedInURL)
 			if hunterErr != nil {
 				add(fmt.Sprintf("Hunter.io LinkedIn: %v", hunterErr))
-				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+				c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs, Error: hunterErr.Error()})
 				return
 			}
 			result.Email = hunterResult.Email
@@ -687,8 +687,8 @@ func findEmailHandler(c *gin.Context) {
 		}
 		add(fmt.Sprintf("Hunter.io: %v", err))
 
-		add("No verified email found. Results are only shown when an API confirms the address.")
-		c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs})
+		add(fmt.Sprintf("No verified email found. Error: %v", err))
+		c.JSON(http.StatusOK, models.FindEmailResponse{Logs: logs, Error: err.Error()})
 	}
 }
 
