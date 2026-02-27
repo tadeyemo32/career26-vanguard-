@@ -354,11 +354,11 @@ function FindEmailTab({ keyStatus, onGoToSettings }: { keyStatus: KeyStatus; onG
         </motion.button>
 
         <div className="flex bg-[#0c0d12] border border-[#1e2235] rounded-xl px-4 py-3 items-center justify-between">
-          <div className="text-xs font-medium text-[#6b7494] whitespace-nowrap mr-3">Est. Cost</div>
+          <div className="text-xs font-medium text-[#6b7494] whitespace-nowrap mr-3">Est. Tokens</div>
           <div className="text-[11px] font-mono text-emerald-400 text-right leading-relaxed">
-            {mode === 'person' && "1 Anymail credit OR 1 Hunter credit"}
-            {(mode === 'company' || mode === 'decision_maker') && "1 Anymail credit per valid email OR 1 Hunter credit per 10 emails"}
-            {mode === 'linkedin' && "1 Anymail credit OR 1 Hunter credit + 1 SerpAPI query"}
+            {mode === 'person' && "5 Anymail Tokens OR 7 Hunter Tokens"}
+            {(mode === 'company' || mode === 'decision_maker') && "5 Anymail Tokens per verified email OR 7 Hunter Tokens per 10 emails"}
+            {mode === 'linkedin' && "5 Anymail Tokens OR 8 Tokens (Hunter + SerpAPI)"}
           </div>
         </div>
       </div>
