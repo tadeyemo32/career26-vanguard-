@@ -10,3 +10,5 @@ frontend/node_modules/
 .env
 *.egg-info/
 backend/data/
+# AI Local Context
+context/

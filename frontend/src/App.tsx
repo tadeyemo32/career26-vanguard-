@@ -15,6 +15,15 @@ import './index.css';
 // ── Auth types ────────────────────────────────────────────────────────────────
 interface User { email: string; credits: number; role: string; }
 
+const JOB_TITLES = [
+  "Director", "Partner", "VP", "Managing Director", "Principal", "Associate",
+  "Head of Business Development", "Head of Investor Relations", "CFO", "CEO",
+  "Analyst", "Graduate", "Intern", "Early Careers", "Talent Acquisition", "Recruiter",
+  "HR Director", "Head of People", "Chief People Officer", "General Counsel",
+  "Legal Counsel", "Head of Operations", "COO", "Head of Strategy",
+  "Business Development Manager", "Account Manager",
+];
+
 
 // File-accept string for FileUploadZone
 const ACCEPTED = '.csv,.txt,.tsv,.xlsx,.xls,.ods,.pdf,.numbers';
@@ -915,6 +924,10 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
   const [running, setRunning] = useState(false);
   const [pResults, setPResults] = useState<PersonRow[]>([]);
   const [pErr, setPErr] = useState('');
+  const [targetingMode, setTargetingMode] = useState<'career26' | 'custom'>('career26');
+  const [titles, setTitles] = useState<Record<string, boolean>>({ Director: true, Partner: true });
+
+  const toggleTitle = (t: string) => setTitles(p => ({ ...p, [t]: !p[t] }));
 
   // AI Search
   const [aiQ, setAiQ] = useState('');
@@ -939,11 +952,21 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
   const runPipeline = async () => {
     if (!extractedCos.length) { setPErr('Extract companies first.'); return; }
     setRunning(true); setPErr(''); setPResults([]);
-    const { results, error } = await api.outreachRun({
-      count: extractedCos.length, max_per_company: 5, fetch_metadata: true, min_score: 0.8,
-      companies: extractedCos, job_titles: [],
-    });
-    if (error) setPErr(error); else setPResults(results);
+
+    if (targetingMode === 'career26') {
+      const { results, error } = await api.pipelineRun({
+        companies: extractedCos.map(c => ({ company_name: c, headcount: 0 })),
+        max_per_company: 5
+      });
+      if (error) setPErr(error); else setPResults(results.flatMap((r: any) => r.people || []));
+    } else {
+      const selected = Object.keys(titles).filter(k => titles[k]);
+      const { results, error } = await api.outreachRun({
+        count: extractedCos.length, max_per_company: 5, fetch_metadata: true, min_score: 0.8,
+        companies: extractedCos, job_titles: selected.length ? selected : ['Director'],
+      });
+      if (error) setPErr(error); else setPResults(results);
+    }
     setRunning(false);
   };
 
@@ -1094,16 +1117,43 @@ function AppShell({ user, onLogout }: { user: User | null; onLogout: () => void 
                       <div className="w-7 h-7 rounded-full bg-[#13151f] border border-[#262d42] text-[#6b7494] text-xs font-semibold flex items-center justify-center">2</div>
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-sm font-semibold text-white mb-1">Find Targets (Career26 Rule)</h2>
-                      <p className="text-[12px] text-[#6b7494] mb-3">
-                        Vanguard automatically identifies the right contacts based on company size:
-                      </p>
-                      <ul className="text-[12px] text-[#8090a8] space-y-1.5 mb-6 bg-[#0f1018] p-3 rounded-lg border border-[#1e2235]">
-                        <li className="flex gap-2"><span className="text-emerald-400">{'< 50:'}</span> CEO, Founder, Partner, CIO</li>
-                        <li className="flex gap-2"><span className="text-emerald-400">{'50 - 200:'}</span> HR Director</li>
-                        <li className="flex gap-2"><span className="text-emerald-400">{'200 - 500:'}</span> Early Careers Head, HR Director</li>
-                        <li className="flex gap-2 text-[#4b5563]"><span className="text-[#4b5563]">{'> 500:'}</span> Skipped (Out of scope)</li>
-                      </ul>
+                      <div className="flex items-center justify-between mb-2">
+                        <h2 className="text-sm font-semibold text-white">Find Targets</h2>
+                        <div className="flex bg-[#13151f] rounded-lg p-1 border border-[#1e2235]">
+                          <button onClick={() => setTargetingMode('career26')}
+                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${targetingMode === 'career26' ? 'bg-[#3b5cbd] text-white shadow-sm' : 'text-[#6b7494] hover:text-[#a0b4f0]'}`}>
+                            Career26 Rule
+                          </button>
+                          <button onClick={() => setTargetingMode('custom')}
+                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${targetingMode === 'custom' ? 'bg-[#3b5cbd] text-white shadow-sm' : 'text-[#6b7494] hover:text-[#a0b4f0]'}`}>
+                            Custom Titles
+                          </button>
+                        </div>
+                      </div>
+
+                      {targetingMode === 'career26' ? (
+                        <>
+                          <p className="text-[12px] text-[#6b7494] mb-3">Vanguard automatically identifies the right contacts based on company size:</p>
+                          <ul className="text-[12px] text-[#8090a8] space-y-1.5 mb-6 bg-[#0f1018] p-3 rounded-lg border border-[#1e2235]">
+                            <li className="flex gap-2"><span className="text-emerald-400">{'< 50:'}</span> CEO, Founder, Partner, CIO</li>
+                            <li className="flex gap-2"><span className="text-emerald-400">{'50 - 200:'}</span> HR Director</li>
+                            <li className="flex gap-2"><span className="text-emerald-400">{'200 - 500:'}</span> Early Careers Head, HR Director</li>
+                            <li className="flex gap-2 text-[#4b5563]"><span className="text-[#4b5563]">{'> 500:'}</span> Skipped (Out of scope)</li>
+                          </ul>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-[12px] text-[#6b7494] mb-5">Tick any roles to target. Each company is searched for people matching at least one.</p>
+                          <div className="grid grid-cols-4 gap-x-6 gap-y-3 mb-6">
+                            {JOB_TITLES.map(t => (
+                              <label key={t} className="flex items-center gap-2 cursor-pointer group">
+                                <input type="checkbox" checked={!!titles[t]} onChange={() => toggleTitle(t)} className="w-3.5 h-3.5 accent-[#3b5cbd] cursor-pointer" />
+                                <span className="text-[12px] text-[#8090a8] group-hover:text-[#d8dce8] transition-colors">{t}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </>
+                      )}
                       <motion.button onClick={runPipeline} disabled={running || !extractedCos.length}
                         whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                         className="flex items-center gap-2 bg-[#3b5cbd] hover:bg-[#4d70d9] disabled:opacity-40 text-white text-[13px] font-medium px-5 py-2 rounded-lg border border-white/10 transition-all">
